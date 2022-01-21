@@ -39,7 +39,7 @@ public class TestRunner implements Runnable {
 
 	void runTest(List<SchemaTest> tests, TestOptions options) {
 
-		final int NTHREADS = 20; /* Optimal here is actually a key tunable */
+		final int NTHREADS = options.getInteger("threads", 20); /* Optimal here is actually a key tunable */
 
 		for (SchemaTest s : tests) {
 			executorService = Executors.newFixedThreadPool(NTHREADS);

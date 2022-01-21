@@ -25,7 +25,7 @@ public class TestOptions extends Document {
         cliopt.addOption("m", "orders", true, "Number of orders per customer");
         cliopt.addOption("i", "items", true, "Number of items per order");
         cliopt.addOption("p", "products", true, "Number of products");
-
+        cliopt.addOption("t", "threads", true, "Number of client threads (default 20)");
         CommandLine cmd;
         try {
             cmd = parser.parse(cliopt, args);
@@ -45,7 +45,7 @@ public class TestOptions extends Document {
             this.put("load", true);
         }
 
-        String[] integerParamaters = { "size", "customers", "orders", "items", "products" };
+        String[] integerParamaters = { "size", "customers", "orders", "items", "products", "threads" };
         Document integerDefaults = Document.parse("{size:4096,customers:10000,orders:20,items:5,products:10000}");
 
         for (String param : integerParamaters) {
