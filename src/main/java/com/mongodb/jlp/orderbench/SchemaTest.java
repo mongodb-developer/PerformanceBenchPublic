@@ -9,5 +9,7 @@ public interface SchemaTest {
 
     String name();
 
+    void cleanup();
+
     List<Document> getOrderById(String orderId);
 }

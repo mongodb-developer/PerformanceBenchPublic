@@ -49,4 +49,10 @@ public class SingleTableTest implements SchemaTest {
         return "SingleTableTest";
     }
 
+    @Override
+    public void cleanup() {
+        // TODO Auto-generated method stub
+
+    }
+
 }

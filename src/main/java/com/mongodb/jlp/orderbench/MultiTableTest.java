@@ -2,6 +2,7 @@ package com.mongodb.jlp.orderbench;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import java.util.regex.Pattern;
 
 import com.mongodb.client.MongoClient;
@@ -10,9 +11,15 @@ import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Indexes;
 
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 
 public class MultiTableTest implements SchemaTest {
 
@@ -23,6 +30,7 @@ public class MultiTableTest implements SchemaTest {
     String rawCollectionName = "data"; // TODO - pull thesee out to the TestOptions class
     String dbName = "orderbench";
     MongoDatabase db;
+    ExecutorService executorService;
 
     // Single threaded version to start with
     // We can see if Multi thread helps later but more complex
@@ -32,11 +40,24 @@ public class MultiTableTest implements SchemaTest {
                 "shipmentitem" };
 
         List<Document> rval = new ArrayList<Document>();
+        List<Future<List<Document>>> partials = new ArrayList<Future<List<Document>>>();
+
         Pattern regex = Pattern.compile(String.format("^%s[^0-9]", orderId));
         for (String tname : ordertypes) {
             MongoCollection<Document> c = db.getCollection(tname);
-            c.find(Filters.or(Filters.eq("_id", orderId), Filters.eq("_id", regex))).into(rval);
+            Bson q = Filters.or(Filters.eq("_id", orderId), Filters.eq("_id", regex));
+            Future<List<Document>> future = executorService.submit(new QueryWorker(c, q));
+            partials.add(future);
         }
+        for (Future<List<Document>> p : partials) {
+            try {
+                rval.addAll(p.get());
+            } catch (InterruptedException | ExecutionException e) {
+
+                e.printStackTrace();
+            }
+        }
+
         return rval;
     }
 
@@ -46,6 +67,7 @@ public class MultiTableTest implements SchemaTest {
         logger = LoggerFactory.getLogger(SingleTableTest.class);
         mongoClient = m;
         db = mongoClient.getDatabase(dbName);
+        executorService = Executors.newFixedThreadPool(10);
     }
 
     // Method to take the Bulk loaded data and prepare it for testing
@@ -70,6 +92,11 @@ public class MultiTableTest implements SchemaTest {
 
     public String name() {
         return "MultiTableTest";
+    }
+
+    @Override
+    public void cleanup() {
+        executorService.shutdown();
     }
 
 }

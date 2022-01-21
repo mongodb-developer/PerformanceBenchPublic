@@ -72,7 +72,9 @@ public class OrderBench {
 		TestRunner runner = new TestRunner();
 		logger.info("Running tests...");
 		runner.runTest(tests, options);
-
+		for (SchemaTest s : tests) {
+			s.cleanup();
+		}
 	}
 
 }
