@@ -1,0 +1,11 @@
+{
+            "Comment": "CREATE an A record ",
+            "Changes": [{
+            "Action": "UPSERT",
+                        "ResourceRecordSet": {
+                                    "Name": "firstnamelastname02.mdbrecruit.net",
+                                    "Type": "A",
+                                    "TTL": 300,
+                                 "ResourceRecords": [{ "Value":"172.31.43.196"}]
+}}]
+}
