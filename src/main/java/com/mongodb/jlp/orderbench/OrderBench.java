@@ -60,13 +60,28 @@ public class OrderBench {
 		logger.info("Quick self test - just to see we are getting results");
 		int customer = 1;
 		int order = 1;
-		String orderId = String.format("C#%dO#%d", customer, order);
+
 		for (SchemaTest s : tests) {
-			List<Document> d = s.getOrderById(orderId);
+			List<Document> d = s.getOrderById(customer, order);
 			logger.info(s.name() + " Result size: " + d.size());
 			if (d.size() == 0 || d.size() > 500) {
-				logger.warn("DOES THIS LOOK CORRECT!!!");
+				logger.error("THIS DOESN'T LOOK CORRECT!!!");
+				System.exit(1);
 			}
+			int changes = s.addNewShipment(1, 1, options.getInteger("items") + 1, 5, 1);
+			logger.info(s.name() + " new Shipment changes: " + changes);
+			if (changes == 0) {
+				logger.error("THIS DOESN'T LOOK CORRECT!!!");
+				System.exit(1);
+			}
+
+			changes = s.updateSingleItem(1, 1, 1);
+			logger.info(s.name() + " updateItem changes: " + changes);
+			if (changes == 0) {
+				logger.error("THIS DOESN'T LOOK CORRECT!!! - does Customer1 Order 1 have 0 items?");
+				System.exit(1);
+			}
+
 		}
 
 		TestRunner runner = new TestRunner();

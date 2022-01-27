@@ -5,11 +5,18 @@ import java.util.List;
 import org.bson.Document;
 
 public interface SchemaTest {
-    void prepareTestData();
+	void prepareTestData();
 
-    String name();
+	String name();
 
-    void cleanup();
+	void cleanup();
 
-    List<Document> getOrderById(String orderId);
+	void warmup();
+
+	List<Document> getOrderById(int custid, int orderid);
+
+	public int addNewShipment(int custid, int orderid, int shipmentid, int itemsinshipment, int warehouseid);
+
+	public int updateSingleItem(int custid, int orderid, int itemid);
+
 }
