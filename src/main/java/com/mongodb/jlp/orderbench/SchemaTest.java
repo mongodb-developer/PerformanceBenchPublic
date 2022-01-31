@@ -19,4 +19,5 @@ public interface SchemaTest {
 
 	public int updateSingleItem(int custid, int orderid, int itemid);
 
+	public int updateMultiItem(int custid, int orderid, int itemid);
 }

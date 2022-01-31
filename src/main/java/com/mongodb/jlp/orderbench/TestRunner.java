@@ -25,7 +25,7 @@ public class TestRunner implements Runnable {
 	boolean warmup;
 
 	String[] subtests = {
-			"GETORDERBYID", "ADDSHIPMENT", "INCITEMCOUNT"
+			"GETORDERBYID", "ADDSHIPMENT", "INCITEMCOUNT", "INCMULTIITEM"
 	};
 
 	int OPS_TO_TEST;
@@ -149,6 +149,22 @@ public class TestRunner implements Runnable {
 		}
 	}
 
+	void intItemCountTestWithDate(SchemaTest s, TestOptions testOptions, boolean warmup) {
+
+		for (int o = 0; o < OPS_TO_TEST; o++) {
+			int custid = random.nextInt(testOptions.getInteger("customers")) + 1;
+			int orderid = random.nextInt(testOptions.getInteger("orders")) + 1;
+			int itemid = random.nextInt(testOptions.getInteger("items") / 2) + 1; // By selecting a random number up to
+																					// half items its more likely to be
+																					// there.
+			long startTime = System.nanoTime();
+			s.updateMultiItem(custid, orderid, itemid);
+			long endTime = System.nanoTime();
+			long duration = (endTime - startTime) / 1000; // Microseconds
+			times[o] = duration;
+		}
+	}
+
 	@Override
 	public void run() {
 		// Change this so we can specify what test it should launch.
@@ -161,6 +177,9 @@ public class TestRunner implements Runnable {
 				break;
 			case "INCITEMCOUNT":
 				intItemCountTest(test, options, warmup);
+				break;
+			case "INCMULTIITEM":
+				intItemCountTestWithDate(test, options, warmup);
 				break;
 			default:
 				break;

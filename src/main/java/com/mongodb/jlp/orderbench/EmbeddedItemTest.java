@@ -2,6 +2,7 @@ package com.mongodb.jlp.orderbench;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 import com.mongodb.client.AggregateIterable;
@@ -196,6 +197,19 @@ public class EmbeddedItemTest implements SchemaTest {
 				Updates.inc("items.$.qty", 1));
 		return (int) ur.getModifiedCount();
 
+	}
+
+	@Override
+	public int updateMultiItem(int custid, int orderid, int itemid) {
+		String orderPK = String.format("C#%d#O#%d", custid, orderid); // Lookup on PK is fine - no real need for index
+																		// on
+																		// Item
+		// But we do put Item in the Query to help us use $ to identify which to modify
+
+		UpdateResult ur = embeddedCollection.updateOne(
+				Filters.and(Filters.eq("_id", orderPK), Filters.eq("items.itemId", itemid)),
+				Updates.combine(Updates.inc("items.$.qty", 1), Updates.set("lastupdate", new Date())));
+		return (int) ur.getModifiedCount();
 	}
 
 }

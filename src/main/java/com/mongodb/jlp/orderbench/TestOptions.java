@@ -18,15 +18,16 @@ public class TestOptions extends Document {
 
 		Options cliopt;
 		cliopt = new Options();
-		cliopt.addOption("u", "uri", true, "MongoDB COnnection URI");
+		cliopt.addOption("u", "uri", true, "MongoDB COnnection URI (localhost:27017)");
 		cliopt.addOption("l", "load", false, "Perform Initial Data Load");
-		cliopt.addOption("s", "size", true, "Size of orders");
+		cliopt.addOption("s", "size", true, "Size of orders (4000)10");
 		cliopt.addOption("n", "customers", true, "Number of customers");
 		cliopt.addOption("m", "orders", true, "Number of orders per customer");
 		cliopt.addOption("i", "items", true, "Number of items per order");
 		cliopt.addOption("p", "products", true, "Number of products");
 		cliopt.addOption("t", "threads", true, "Number of client threads (default 20)");
-		cliopt.addOption("i", "itterations", true, "Number of operation to test (default 50000)");
+		cliopt.addOption("z", "itterations", true, "Number of operation to test (default 50000)");
+
 		CommandLine cmd;
 		try {
 			cmd = parser.parse(cliopt, args);

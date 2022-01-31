@@ -1,16 +1,21 @@
 package com.mongodb.jlp.orderbench;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.Random;
 import java.util.regex.Pattern;
 
+import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Indexes;
+import com.mongodb.client.model.UpdateOneModel;
 import com.mongodb.client.model.Updates;
+import com.mongodb.client.model.WriteModel;
 import com.mongodb.client.result.InsertManyResult;
 import com.mongodb.client.result.UpdateResult;
 
@@ -117,6 +122,31 @@ public class SingleTableTest implements SchemaTest {
 
 		UpdateResult ur = singleTable.updateOne(Filters.eq("_id", orderPK), Updates.inc("qty", 1));
 		return (int) ur.getModifiedCount();
+	}
+
+	// Simulates an operation that updates multiple bits of data
+	// You may want to wrap this in a transaction too but as it has little
+	// performance impact in this use case we won't for simplicity and clarity
+	// Here we increase the count for an item but also update 'lastupdate' on the
+	// order
+
+	// Using bulkWrite to make it a single call to the server as it's the same
+	// collection
+
+	@Override
+	public int updateMultiItem(int custid, int orderid, int itemid) {
+		String orderItemPK = String.format("C#%d#O#%d#I#%d", custid, orderid, itemid);
+		String orderPK = String.format("C#%d#O#%d", custid, orderid);
+		// Update The Item Quantity
+
+		UpdateOneModel<Document> inc_item = new UpdateOneModel<Document>(Filters.eq("_id", orderItemPK),
+				Updates.inc("qty", 1));
+		UpdateOneModel<Document> set_order_lastdate = new UpdateOneModel<Document>(Filters.eq("_id", orderPK),
+				Updates.set("lastupdate", new Date()));
+
+		BulkWriteResult result = singleTable.bulkWrite(Arrays.asList(inc_item, set_order_lastdate));
+
+		return result.getModifiedCount();
 	}
 
 }

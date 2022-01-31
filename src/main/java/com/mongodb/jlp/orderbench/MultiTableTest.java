@@ -1,6 +1,7 @@
 package com.mongodb.jlp.orderbench;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import java.util.regex.Pattern;
@@ -163,5 +164,19 @@ public class MultiTableTest implements SchemaTest {
 		MongoCollection<Document> itemCollection = db.getCollection("orderitem");
 		UpdateResult ur = itemCollection.updateOne(Filters.eq("_id", orderPK), Updates.inc("qty", 1));
 		return (int) ur.getModifiedCount();
+	}
+
+	@Override
+	public int updateMultiItem(int custid, int orderid, int itemid) {
+		String orderItemPK = String.format("C#%d#O#%d#I#%d", custid, orderid, itemid);
+		String orderPK = String.format("C#%d#O#%d", custid, orderid);
+		// Update The Item Quantity
+		MongoCollection<Document> itemCollection = db.getCollection("orderitem");
+		UpdateResult ur = itemCollection.updateOne(Filters.eq("_id", orderItemPK), Updates.inc("qty", 1));
+		// Update the main order record which kees a track of the last change
+		MongoCollection<Document> orderCollection = db.getCollection("order");
+		UpdateResult ur2 = orderCollection.updateOne(Filters.eq("_id", orderPK), Updates.set("lastupdate", new Date()));
+
+		return (int) ur.getModifiedCount() + (int) ur2.getModifiedCount();
 	}
 }
