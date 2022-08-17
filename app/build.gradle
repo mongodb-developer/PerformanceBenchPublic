@@ -47,25 +47,3 @@ tasks.named('run') {
         args Eval.me(cmdArgs)
     }
 }
-
-//tasks.named('run') {
-//    if ( project.hasProperty("cmdArgs") ) {
-//        args Eval.me( setCommandLineArguments(cmdArgs) )
-//    }
-//}
-//
-//// this method creates a command line arguments
-//def setCommandLineArguments(commandLineArgs) {
-//    // remove spaces 
-//    def arguments = commandLineArgs.tokenize()
-//
-//            // create a string that can be used by Eval 
-//            def cla = "["
-//            // go through the list to get each argument
-//            arguments.each {
-//                    cla += "'" + "${it}" + "',"
-//            }
-//
-//    // remove last "," add "]" and set the args 
-//    return cla.substring(0, cla.lastIndexOf(',')) + "]"
-//}*/
