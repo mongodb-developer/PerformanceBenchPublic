@@ -1,0 +1,34 @@
+{
+    "models": [
+        {
+            "namespace": "com.mongodb.devrel.pods.performancebench.models.multitable",
+            "className": "MultiTableTest",
+            "metrics": ["GETORDERBYID", "ADDSHIPMENT", "INCITEMCOUNT", "INCMULTIITEM"],
+            "threads": 20,
+            "iterations": 4,
+            "custom": {
+                "uri": "mongodb+srv://testuser:testpass@perfbench.vnekzha.mongodb.net/?retryWrites=true&w=majority",
+                "customers": 100,
+                "orders": 100,
+                "items": 10,
+                "products": 100,
+                "size": 400,
+                "collectionName": "data",
+                "dbname": "orderbenchmultitable",
+                "loadData": true,
+                "warehousescoll": "warehouses",
+                "productscoll": "products",
+                "orderscoll": "orders",
+                "orderitemscoll": "orderitem",
+                "invoicescoll": "invoice",
+                "customerscoll": "customers",
+                "shipmentscoll": "shipment",
+                "shipmentitemscoll": "shipmentitem"
+            }
+        }
+    ]
+}
+
+
+
+

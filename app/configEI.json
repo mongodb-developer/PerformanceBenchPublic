@@ -1,0 +1,33 @@
+{
+    "models": [
+        {
+            "namespace": "com.mongodb.devrel.pods.performancebench.models.embeddeditem",
+            "className": "EmbeddedItemTest",
+            "metrics": ["GETORDERBYID", "ADDSHIPMENT", "INCITEMCOUNT", "INCMULTIITEM"],
+            "threads": 20,
+            "iterations": 4,
+            "custom": {
+                "uri": "mongodb+srv://testuser:testpass@perfbench.vnekzha.mongodb.net/?retryWrites=true&w=majority",
+                "customers": 100,
+                "orders": 100,
+                "items": 10,
+                "products": 100,
+                "size": 400,
+                "collectionName": "data",
+                "dbname": "orderbenchembedded",
+                "loadData": true,
+                "embedded_collection_name": "embedded", 
+                "db_name": "orderbenchembedded",
+                "shipment_type": "shipment",
+                "shipment_item_type": "shipmentitem",
+                "shipment_item_id": "shipmentItemId",
+                "orderitem_type": "orderitem",
+                "order_id": "orderId",
+                "customer_id": "customerId",
+                "shipment_id": "shipmentId",
+                "order_type": "order",
+                "invoice_type":"invoice"
+            }
+        }
+    ]
+}
