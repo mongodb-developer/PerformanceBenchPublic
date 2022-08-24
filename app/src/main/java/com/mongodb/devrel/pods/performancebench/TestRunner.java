@@ -56,7 +56,7 @@ public class TestRunner implements Runnable {
             /* Optimal here is actually a key tunable */
             OPS_TO_TEST = ((Long)options.get("iterations")).intValue();
 
-            logger.info("Warmup");
+            logger.debug("Warmup");
             test.warmup();
 
             JSONArray ja = (JSONArray)options.get("metrics");
@@ -65,7 +65,7 @@ public class TestRunner implements Runnable {
                 subtests[i]=ja.get(i).toString();
             }
 
-            logger.info("Testing " + OPS_TO_TEST);
+            logger.debug("Testing " + OPS_TO_TEST);
 
             for (String st : subtests) {
                 executorService = Executors.newFixedThreadPool(NTHREADS);

@@ -67,7 +67,7 @@ goto fail
 :execute
 @rem Setup the command line
 
-set CLASSPATH=%APP_HOME%\lib\app.jar;%APP_HOME%\lib\guava-30.1.1-jre.jar;%APP_HOME%\lib\mongodb-driver-sync-4.7.1.jar;%APP_HOME%\lib\jul-to-slf4j-1.7.25.jar;%APP_HOME%\lib\slf4j-api-1.7.25.jar;%APP_HOME%\lib\commons-cli-1.3.jar;%APP_HOME%\lib\json-simple-1.1.jar;%APP_HOME%\lib\failureaccess-1.0.1.jar;%APP_HOME%\lib\listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar;%APP_HOME%\lib\jsr305-3.0.2.jar;%APP_HOME%\lib\checker-qual-3.8.0.jar;%APP_HOME%\lib\error_prone_annotations-2.5.1.jar;%APP_HOME%\lib\j2objc-annotations-1.3.jar;%APP_HOME%\lib\mongodb-driver-core-4.7.1.jar;%APP_HOME%\lib\bson-record-codec-4.7.1.jar;%APP_HOME%\lib\bson-4.7.1.jar
+set CLASSPATH=%APP_HOME%\lib\app.jar;%APP_HOME%\lib\guava-30.1.1-jre.jar;%APP_HOME%\lib\mongodb-driver-sync-4.7.1.jar;%APP_HOME%\lib\jul-to-slf4j-1.7.25.jar;%APP_HOME%\lib\logback-classic-1.2.6.jar;%APP_HOME%\lib\slf4j-api-1.7.32.jar;%APP_HOME%\lib\commons-cli-1.3.jar;%APP_HOME%\lib\json-simple-1.1.jar;%APP_HOME%\lib\ibatis-core-3.0.jar;%APP_HOME%\lib\postgresql-42.4.1.jar;%APP_HOME%\lib\failureaccess-1.0.1.jar;%APP_HOME%\lib\listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar;%APP_HOME%\lib\jsr305-3.0.2.jar;%APP_HOME%\lib\checker-qual-3.8.0.jar;%APP_HOME%\lib\error_prone_annotations-2.5.1.jar;%APP_HOME%\lib\j2objc-annotations-1.3.jar;%APP_HOME%\lib\mongodb-driver-core-4.7.1.jar;%APP_HOME%\lib\bson-record-codec-4.7.1.jar;%APP_HOME%\lib\bson-4.7.1.jar;%APP_HOME%\lib\logback-core-1.2.6.jar
 
 
 @rem Execute app

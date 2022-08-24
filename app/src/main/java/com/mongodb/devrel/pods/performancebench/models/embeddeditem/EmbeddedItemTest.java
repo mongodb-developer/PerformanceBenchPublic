@@ -75,7 +75,7 @@ public class EmbeddedItemTest implements SchemaTest {
         mongoClient = MongoClients.create(customArgs.get("uri").toString());
         // Quick check of connection up front
         Document pingResult = mongoClient.getDatabase("system").runCommand(new Document("hello", 1));
-        logger.info(pingResult.toJson());
+        logger.debug(pingResult.toJson());
         
         EMBEDDED_COLLECTION_NAME = (String)customArgs.get("embedded_collection_name");
         RAW_COLLECTION_NAME = (String)customArgs.get("collectionName");
@@ -102,25 +102,25 @@ public class EmbeddedItemTest implements SchemaTest {
         }
 
         /* Quick check things are working */
-        logger.info("Quick self test - just to see we are getting results");
+        logger.debug("Quick self test - just to see we are getting results");
         int customer = 1;
         int order = 1;
 
         List<Document> d = getOrderById(customer, order);
-        logger.info(name() + " Result size: " + d.size());
+        logger.debug(name() + " Result size: " + d.size());
         if (d.isEmpty() || d.size() > 500) {
             logger.error("THIS DOESN'T LOOK CORRECT!!!");
             System.exit(1);
         }
         int changes = addNewShipment(1, 1, ((Long)customArgs.get("items")).intValue() + 1, 5, 1);
-        logger.info(name() + " new Shipment changes: " + changes);
+        logger.debug(name() + " new Shipment changes: " + changes);
         if (changes == 0) {
             logger.error("THIS DOESN'T LOOK CORRECT!!!");
             System.exit(1);
         }
 
         changes = updateSingleItem(1, 1, 1);
-        logger.info(name() + " updateItem changes: " + changes);
+        logger.debug(name() + " updateItem changes: " + changes);
         if (changes == 0) {
             logger.error("THIS DOESN'T LOOK CORRECT!!! - does Customer1 Order 1 have 0 items?");
             System.exit(1);
@@ -237,13 +237,13 @@ public class EmbeddedItemTest implements SchemaTest {
     // TODO - Refactor all the below to use Aggregates.X and Filters.X
     public void prepareTestData() {
         
-        logger.info("Creating Schema - 1 Collection , 1 Document per Order (Document Style)");
-        logger.info("Adding Indexes");
+        logger.debug("Creating Schema - 1 Collection , 1 Document per Order (Document Style)");
+        logger.debug("Adding Indexes");
 
         mongoClient.getDatabase(DB_NAME).getCollection(RAW_COLLECTION_NAME)
                 .createIndex(Indexes.ascending(CUSTOMER_ID, ORDER_ID, SHIPMENT_ITEM_ID));
 
-        logger.info("Creating Embedded - This  may take a while");
+        logger.debug("Creating Embedded - This  may take a while");
 
         MongoDatabase database = mongoClient.getDatabase(DB_NAME);
         MongoCollection<Document> collection = database.getCollection(RAW_COLLECTION_NAME);
@@ -311,11 +311,11 @@ public class EmbeddedItemTest implements SchemaTest {
         List<Document> pipeline = Arrays.asList(GetAllOrders, GetOrderItems, GetOrderShipments, GetOrderInvoices,
                 WriteResult);
 
-        logger.info(new Document("x", pipeline).toJson(JsonWriterSettings.builder().indent(true).build()));
+        logger.debug(new Document("x", pipeline).toJson(JsonWriterSettings.builder().indent(true).build()));
         AggregateIterable<Document> result = collection.aggregate(pipeline);
 
         result.first();
-        logger.info("Done!");
+        logger.debug("Done!");
     }
 
     @Override

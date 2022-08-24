@@ -48,12 +48,12 @@ public class BulkLoadMDB {
     }
 
     public void loadInitialData(JSONObject options) {
-        logger.info("Loading Initial Data Single Collection Style");
+        logger.info("Loading Initial Data");
         // Keep track of how many orders for each customer to allow serial numbering
         custOrders = new int[((Long)options.get("customers")).intValue() + 1];// Index from 1
         custOrderItems = new HashMap<>();
 
-        logger.info(options.toJSONString());
+        logger.debug(options.toJSONString());
         testOptions = options;
 
         dropExistingData();
@@ -68,14 +68,14 @@ public class BulkLoadMDB {
     }
 
     void dropExistingData() {
-        logger.info("Dropping Existing Data");
+        logger.debug("Dropping Existing Data");
         mongoClient.getDatabase((String)testOptions.get("dbname")).drop();
     }
 
     // Small, fixed number of warehouses
     void loadWarehouses() {
         List<Document> warehouses = new ArrayList<>();
-        logger.info("Loading Warehouse Data");
+        logger.debug("Loading Warehouse Data");
         for (int c = 1; c <= NUM_WAREHOUSES; c++) {
             Document warehouse = recordFactory.getWarehouse(c);
 
@@ -88,14 +88,14 @@ public class BulkLoadMDB {
     // Configurable - large number of products in warehouses
     void loadProducts() {
         List<Document> products = new ArrayList<>();
-        logger.info("Loading Product Data");
+        logger.debug("Loading Product Data");
         for (int c = 1; c <= ((Long)testOptions.get("products")).intValue(); c++) {
             int whid = random.nextInt(NUM_WAREHOUSES);
             Document product = recordFactory.getProduct(c, whid);
             product.put("_id", String.format("P#%d", product.getInteger("productId")));
             products.add(product);
             if (c % BATCHSIZE == 0 && !products.isEmpty()) {
-                logger.info("Products: " + c);
+                logger.debug("Products: " + c);
                 mongoClient.getDatabase((String)testOptions.get("dbname")).getCollection((String)testOptions.get("collectionName")).insertMany(products);
                 products.clear();
             }
@@ -107,13 +107,13 @@ public class BulkLoadMDB {
 
     void loadCustomers() {
         List<Document> customers = new ArrayList<>();
-        logger.info("Loading Customer Data");
+        logger.debug("Loading Customer Data");
         for (int c = 1; c <= ((Long)testOptions.get("customers")).intValue(); c++) {
             Document customer = recordFactory.getCustomer(c);
             customer.put("_id", String.format("C#%d", customer.getInteger("customerId")));
             customers.add(customer);
             if (c % BATCHSIZE == 0 && !customers.isEmpty()) {
-                logger.info("Customers: " + c);
+                logger.debug("Customers: " + c);
                 mongoClient.getDatabase((String)testOptions.get("dbname")).getCollection((String)testOptions.get("collectionName")).insertMany(customers);
                 customers.clear();
             }
@@ -125,7 +125,7 @@ public class BulkLoadMDB {
 
     void loadOrders() {
         List<Document> orders = new ArrayList<>();
-        logger.info("Loading Order Data");
+        logger.debug("Loading Order Data");
         // Orders is average orders per customer
         for (int c = 0; c < ((Long)testOptions.get("orders")).intValue() * ((Long)testOptions.get("customers")).intValue(); c++) {
             int custid = random.nextInt(((Long)testOptions.get("customers")).intValue()) + 1;
@@ -136,7 +136,7 @@ public class BulkLoadMDB {
             custOrderItems.put(custid + "_" + orderid, 0);
             orders.add(order);
             if (c % BATCHSIZE == 0 && !orders.isEmpty()) {
-                logger.info("Orders: " + c);
+                logger.debug("Orders: " + c);
                 mongoClient.getDatabase((String)testOptions.get("dbname")).getCollection((String)testOptions.get("collectionName")).insertMany(orders);
                 orders.clear();
             }
@@ -148,7 +148,7 @@ public class BulkLoadMDB {
 
     void loadOrderItems() {
         List<Document> orderItems = new ArrayList<>();
-        logger.info("Loading orderItems Data");
+        logger.debug("Loading orderItems Data");
         // Orders is average orders per customer
         for (int c = 0; c < ((Long)testOptions.get("orders")).intValue() * ((Long)testOptions.get("customers")).intValue()
                 * ((Long)testOptions.get("items")).intValue(); c++) {
@@ -167,7 +167,7 @@ public class BulkLoadMDB {
             orderItems.add(orderItem);
 
             if (c % BATCHSIZE == 0 && !orderItems.isEmpty()) {
-                logger.info("OrderItems: " + c);
+                logger.debug("OrderItems: " + c);
                 mongoClient.getDatabase((String)testOptions.get("dbname")).getCollection((String)testOptions.get("collectionName")).insertMany(orderItems);
                 orderItems.clear();
             }
@@ -182,7 +182,7 @@ public class BulkLoadMDB {
     void loadInvoices() {
         List<Document> invoices = new ArrayList<>();
         int c = 0;
-        logger.info("Loading INVOICE Data");
+        logger.debug("Loading INVOICE Data");
         for (String key : custOrderItems.keySet()) {
             String[] parts = key.split("_");
             int custid = Integer.parseInt(parts[0]);
@@ -194,7 +194,7 @@ public class BulkLoadMDB {
             invoices.add(invoice);
             c++;
             if (c % BATCHSIZE == 0 && !invoices.isEmpty()) {
-                logger.info("Invoices: " + c);
+                logger.debug("Invoices: " + c);
                 mongoClient.getDatabase((String)testOptions.get("dbname")).getCollection((String)testOptions.get("collectionName")).insertMany(invoices);
                 invoices.clear();
             }
@@ -210,7 +210,7 @@ public class BulkLoadMDB {
         List<Document> shipments = new ArrayList<>();
         List<Document> shipmentItems = new ArrayList<>();
         int c = 0;
-        logger.info("Loading shipment Data");
+        logger.debug("Loading shipment Data");
         for (String key : custOrderItems.keySet()) {
             String[] parts = key.split("_");
             int custid = Integer.parseInt(parts[0]);
@@ -245,7 +245,7 @@ public class BulkLoadMDB {
             } while (itemsshipped < nItems);
             c++;
             if (c % BATCHSIZE == 0 && !shipments.isEmpty()) {
-                logger.info("shipments: " + c);
+                logger.debug("shipments: " + c);
                 mongoClient.getDatabase((String)testOptions.get("dbname")).getCollection((String)testOptions.get("collectionName")).insertMany(shipments);
                 mongoClient.getDatabase((String)testOptions.get("dbname")).getCollection((String)testOptions.get("collectionName")).insertMany(shipmentItems);
                 shipments.clear();

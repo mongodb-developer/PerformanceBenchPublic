@@ -62,7 +62,7 @@ public class MultiTableTest implements SchemaTest {
         mongoClient = MongoClients.create(customArgs.get("uri").toString());
         // Quick check of connection up front
         Document pingResult = mongoClient.getDatabase("system").runCommand(new Document("hello", 1));
-        logger.info(pingResult.toJson());
+        logger.debug(pingResult.toJson());
         
         db = mongoClient.getDatabase((String)customArgs.get("dbname"));
 	executorService = Executors.newFixedThreadPool(10);
@@ -77,26 +77,26 @@ public class MultiTableTest implements SchemaTest {
         }
 
         /* Quick check things are working */
-        logger.info("Quick self test - just to see we are getting results");
+        logger.debug("Quick self test - just to see we are getting results");
         int customer = 1;
         int order = 1;
 
 
         List<Document> d = getOrderById(customer, order);
-        logger.info(name() + " Result size: " + d.size());
+        logger.debug(name() + " Result size: " + d.size());
         if (d.isEmpty() || d.size() > 500) {
             logger.error("THIS DOESN'T LOOK CORRECT!!!");
             System.exit(1);
         }
         int changes = addNewShipment(1, 1, ((Long)customArgs.get("items")).intValue() + 1, 5, 1);
-        logger.info(name() + " new Shipment changes: " + changes);
+        logger.debug(name() + " new Shipment changes: " + changes);
         if (changes == 0) {
             logger.error("THIS DOESN'T LOOK CORRECT!!!");
             System.exit(1);
         }
 
         changes = updateSingleItem(1, 1, 1);
-        logger.info(name() + " updateItem changes: " + changes);
+        logger.debug(name() + " updateItem changes: " + changes);
         if (changes == 0) {
             logger.error("THIS DOESN'T LOOK CORRECT!!! - does Customer1 Order 1 have 0 items?");
             System.exit(1);
@@ -241,12 +241,12 @@ public class MultiTableTest implements SchemaTest {
     // Method to take the Bulk loaded data and prepare it for testing
     // For exmaple to reshape oir index it
     public void prepareTestData() {
-        logger.info("Creating Schema - 1 Collection per type (RDBMS style)");
+        logger.debug("Creating Schema - 1 Collection per type (RDBMS style)");
         db.getCollection(customArgs.get("collectionName").toString()).createIndex(Indexes.ascending("type")); // TODO - pull out string constants
         // for collection names
 
         for (String t : collectionTypes) {
-            logger.info("Writing " + t);
+            logger.debug("Writing " + t);
             // This is very old-school
             List<Document> pipeline = new ArrayList<>();
 

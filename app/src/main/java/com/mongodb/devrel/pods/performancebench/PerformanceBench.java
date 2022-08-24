@@ -3,6 +3,10 @@
  */
 package com.mongodb.devrel.pods.performancebench;
 
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.core.util.StatusPrinter;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -14,7 +18,7 @@ import org.json.simple.JSONObject;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.bridge.SLF4JBridgeHandler;
+//import org.slf4j.bridge.SLF4JBridgeHandler;
 
 public class PerformanceBench {
     
@@ -22,15 +26,18 @@ public class PerformanceBench {
     static Logger logger;
 
     public static void main(String[] args) {
-
-        LogManager.getLogManager().reset();
-
-        SLF4JBridgeHandler.removeHandlersForRootLogger();
-        SLF4JBridgeHandler.install();
-        BenchOptions options = null;
-
+        
+        BenchOptions options = null;        
+        
         logger = LoggerFactory.getLogger(PerformanceBench.class);
         logger.info(version);
+        
+        
+        //Uncomment the following lines if there is a problem wiht logback.xml - 
+        //// assume SLF4J is bound to logback in the current environment
+        //LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+        //// print logback's internal status
+        //StatusPrinter.print(lc);
         
 
         try {
@@ -70,10 +77,6 @@ public class PerformanceBench {
             st.cleanup();
         }        
         
-    }
-    
-    public String getGreeting() {
-        return "Hello World!";
     }
 
 }

@@ -66,7 +66,7 @@ public class PostgresTest implements SchemaTest {
             pgClient = DriverManager
                     .getConnection(customArgs.get("uri").toString(), customArgs.get("pguser").toString(), customArgs.get("pgpass").toString());
             if(pgClient.isValid(5)){
-                logger.info("Opened connection to Postgres successfully");
+                logger.debug("Opened connection to Postgres successfully");
             }else{
                 logger.error("Error connecting to Postgres - connection is invalid");
                 System.exit(1);

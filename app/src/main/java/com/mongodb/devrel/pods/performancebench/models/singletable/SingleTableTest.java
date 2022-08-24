@@ -58,7 +58,7 @@ public class SingleTableTest implements SchemaTest {
         mongoClient = MongoClients.create(customArgs.get("uri").toString());
         // Quick check of connection up front
         Document pingResult = mongoClient.getDatabase("system").runCommand(new Document("hello", 1));
-        logger.info(pingResult.toJson());
+        logger.debug(pingResult.toJson());
         
         singleTable = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("collectionName"));
 
@@ -72,26 +72,26 @@ public class SingleTableTest implements SchemaTest {
         }
 
         /* Quick check things are working */
-        logger.info("Quick self test - just to see we are getting results");
+        logger.debug("Quick self test - just to see we are getting results");
         int customer = 1;
         int order = 1;
 
 
         List<Document> d = getOrderById(customer, order);
-        logger.info(name() + " Result size: " + d.size());
+        logger.debug(name() + " Result size: " + d.size());
         if (d.isEmpty() || d.size() > 500) {
             logger.error("THIS DOESN'T LOOK CORRECT!!!");
             System.exit(1);
         }
         int changes = addNewShipment(1, 1, ((Long)customArgs.get("items")).intValue() + 1, 5, 1);
-        logger.info(name() + " new Shipment changes: " + changes);
+        logger.debug(name() + " new Shipment changes: " + changes);
         if (changes == 0) {
             logger.error("THIS DOESN'T LOOK CORRECT!!!");
             System.exit(1);
         }
 
         changes = updateSingleItem(1, 1, 1);
-        logger.info(name() + " updateItem changes: " + changes);
+        logger.debug(name() + " updateItem changes: " + changes);
         if (changes == 0) {
             logger.error("THIS DOESN'T LOOK CORRECT!!! - does Customer1 Order 1 have 0 items?");
             System.exit(1);

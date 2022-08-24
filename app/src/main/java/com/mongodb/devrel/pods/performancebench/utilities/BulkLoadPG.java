@@ -58,12 +58,12 @@ public class BulkLoadPG {
     }
 
     public void loadInitialData(JSONObject options) {
-        logger.info("Loading Initial Data Single Collection Style");
+        logger.info("Loading Initial Data (Postgres)");
         // Keep track of how many orders for each customer to allow serial numbering
         custOrders = new int[((Long)options.get("customers")).intValue() + 1];// Index from 1
         custOrderItems = new HashMap<>();
 
-        logger.info(options.toJSONString());
+        logger.debug(options.toJSONString());
         testOptions = options;
 
         dropExistingData((String)options.get("rebuildScript"));
@@ -78,7 +78,7 @@ public class BulkLoadPG {
     }
 
     void dropExistingData(String schemaScript) {
-        logger.info("Dropping Existing Data");
+        logger.debug("Dropping Existing Data");
         
         try{
             File file = new File(schemaScript);
@@ -86,6 +86,7 @@ public class BulkLoadPG {
             ScriptRunner sr = new ScriptRunner(pgClient);
             sr.setAutoCommit(true);
             sr.setStopOnError(true);
+            sr.setLogWriter(null);
             sr.runScript(reader);
         } catch (FileNotFoundException e) {
             logger.error("Error dropping existing Postgres data");
@@ -98,7 +99,7 @@ public class BulkLoadPG {
     void loadWarehouses() {
         
         try{
-            logger.info("Loading Warehouse Data");
+            logger.debug("Loading Warehouse Data");
             String INSERT_SQL = "INSERT INTO " + (String)testOptions.get("pgSchema") + "." 
                     + (String)testOptions.get("warehousestable") 
                     + " VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
@@ -140,7 +141,7 @@ public class BulkLoadPG {
     void loadProducts() {
         
         try{
-            logger.info("Loading Product Data");
+            logger.debug("Loading Product Data");
             String INSERT_SQL = "INSERT INTO " + (String)testOptions.get("pgSchema") + "." 
                     + (String)testOptions.get("productstable") 
                     + " VALUES (?, ?, ?, ?, ?, ?, ?);";
@@ -188,7 +189,7 @@ public class BulkLoadPG {
     void loadCustomers() {
         
         try{
-            logger.info("Loading Customer Data");
+            logger.debug("Loading Customer Data");
             String INSERT_SQL = "INSERT INTO " + (String)testOptions.get("pgSchema") + "." 
                     + (String)testOptions.get("customerstable") 
                     + " VALUES (?, ?, ?, ?, ?);";
@@ -231,7 +232,7 @@ public class BulkLoadPG {
     void loadOrders() {
         
         try{
-            logger.info("Loading Order Data");
+            logger.debug("Loading Order Data");
             String INSERT_SQL = "INSERT INTO " + (String)testOptions.get("pgSchema") + "." 
                     + (String)testOptions.get("orderstable") 
                     + " VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
@@ -259,7 +260,7 @@ public class BulkLoadPG {
                 preparedStatement.addBatch();
                 
                 if (c % BATCHSIZE == 0) {
-                    logger.info("Orders: " + c);
+                    logger.debug("Orders: " + c);
                     preparedStatement.executeBatch();
                 }
             }
@@ -281,7 +282,7 @@ public class BulkLoadPG {
     void loadOrderItems() {
         
         try{
-            logger.info("Loading Order Items Data");
+            logger.debug("Loading Order Items Data");
             String INSERT_SQL = "INSERT INTO " + (String)testOptions.get("pgSchema") + "." 
                     + (String)testOptions.get("orderitemstable") 
                     + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
@@ -318,7 +319,7 @@ public class BulkLoadPG {
                 preparedStatement.addBatch();
                 
                 if (c % BATCHSIZE == 0) {
-                    logger.info("Order Items: " + c);
+                    logger.debug("Order Items: " + c);
                     preparedStatement.executeBatch();
                 }
             }
@@ -342,7 +343,7 @@ public class BulkLoadPG {
     void loadInvoices() {
         
         try{
-            logger.info("Loading Invoice Data");
+            logger.debug("Loading Invoice Data");
             String INSERT_SQL = "INSERT INTO " + (String)testOptions.get("pgSchema") + "." 
                     + (String)testOptions.get("invoicestable") 
                     + " VALUES (?, ?, ?, ?, ?, ?, ?);";
@@ -371,7 +372,7 @@ public class BulkLoadPG {
                 preparedStatement.addBatch();  
                 
                 if (c % BATCHSIZE == 0) {
-                    logger.info("Invoices: " + c);
+                    logger.debug("Invoices: " + c);
                     preparedStatement.executeBatch();
                 }
             }
@@ -396,7 +397,7 @@ public class BulkLoadPG {
         
         
         try{
-            logger.info("Loading Shipment Data");
+            logger.debug("Loading Shipment Data");
             String INSERT_SQL = "INSERT INTO " + (String)testOptions.get("pgSchema") + "." 
                     + (String)testOptions.get("shipmentstable") 
                     + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
@@ -467,7 +468,7 @@ public class BulkLoadPG {
                 } while (itemsshipped < nItems);
                 c++;
                 if (c % BATCHSIZE == 0) {
-                    logger.info("Shipments: " + c);
+                    logger.debug("Shipments: " + c);
                     preparedStatement.executeBatch();
                     itemsPreparedStatement.executeBatch();
                 }
