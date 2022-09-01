@@ -12,9 +12,9 @@ import org.json.simple.JSONObject;
 
 public abstract interface SchemaTest {
             
-        public void initialize(JSONObject args);
+    public void initialize(JSONObject args);
         
-        public double[] executeMeasure(int opsToTest, String subtest, JSONObject args, boolean warmup);
+    public double[] executeMeasure(int opsToTest, String subtest, JSONObject args, boolean warmup);
 	
 	public String name();
 

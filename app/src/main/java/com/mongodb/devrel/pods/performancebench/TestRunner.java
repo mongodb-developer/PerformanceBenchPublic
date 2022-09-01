@@ -107,7 +107,7 @@ public class TestRunner implements Runnable {
                 double secs = (double) (endTime - startTime) / 1000000000.0;
 
                 logger.info(String.format(
-                        "%s:%s max(ms): %.2f min(ms): %.2f mean(ms): %.2f 95th centile(ms): %.2f throughput(qps): %.1f",
+                        "%s:%s max(ms): %.2f, min(ms): %.2f, mean(ms): %.2f, 95th centile(ms): %.2f, throughput(qps): %.1f",
                         test.name(), st,
                         alltimes[timelen - 1] / 1000.0,
                         alltimes[0] / 1000.0,

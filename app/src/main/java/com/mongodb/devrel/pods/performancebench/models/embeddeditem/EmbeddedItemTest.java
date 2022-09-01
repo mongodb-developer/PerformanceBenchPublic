@@ -37,13 +37,12 @@ public class EmbeddedItemTest implements SchemaTest {
     
     Logger logger;
     MongoClient mongoClient;
-    MongoCollection<Document> singleTable;
     RecordFactory recordFactory = new RecordFactory();
     JSONObject args;
     JSONObject customArgs;
     private static final Random random = new Random();
     
-    // As MongoDB lets you use any collection or field name typos can be an isse
+    // As MongoDB lets you use any collection or field name typos can be an issue
     // Put them in constants to avoid this
     private static String EMBEDDED_COLLECTION_NAME;
     private static String RAW_COLLECTION_NAME;

@@ -34,7 +34,7 @@
                 "collectionName": "data",
                 "dbname": "orderbenchembedded",
                 "loadData": true,
-                "embedded_collection_name": "embedded", 
+                "embedded_collection_name": "order", 
                 "db_name": "orderbenchembedded",
                 "shipment_type": "shipment",
                 "shipment_item_type": "shipmentitem",
