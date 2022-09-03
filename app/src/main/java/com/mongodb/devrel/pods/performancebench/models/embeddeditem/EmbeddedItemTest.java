@@ -50,6 +50,7 @@ public class EmbeddedItemTest implements SchemaTest {
     private static String SHIPMENT_DOCUMENTS;
     private static String SHIPMENT_ITEM_DOCUMENTS;
     private static String SHIPMENT_ITEM_ID;
+    private static String ITEM_DOCUMENTS;
     private static String ORDER_ITEM_DOCUMENTS;
     private static String ORDER_ID;
     private static String CUSTOMER_ID;
@@ -246,69 +247,71 @@ public class EmbeddedItemTest implements SchemaTest {
 
         MongoDatabase database = mongoClient.getDatabase(DB_NAME);
         MongoCollection<Document> collection = database.getCollection(RAW_COLLECTION_NAME);
-        // Its easiuer to write complex aggregation by defining variables - even in the
-        // shell
+        // Its easier to write complex aggregation by defining variables - even in the shell
 
-        Document GetAllOrders = new Document("$match", new Document("type", ORDER_DOCUMENTS));
-        Document params = new Document(CUSTOMER_ID, "$" + CUSTOMER_ID).append(ORDER_ID, "$" + ORDER_ID);
+        // Some vars
+        // Declare a 'let' section for a sub-document of a document in a $lookup section
+        Document orderChildLet = new Document(CUSTOMER_ID, "$" + CUSTOMER_ID).append(ORDER_ID, "$" + ORDER_ID);
+        Document shipmentChildLet = new Document(CUSTOMER_ID, "$" + CUSTOMER_ID).append(ORDER_ID, "$" + ORDER_ID).
+                append(SHIPMENT_ID, "$" + SHIPMENT_ID);
 
         Document custIdEq = new Document("$eq", Arrays.asList("$" + CUSTOMER_ID, "$$" + CUSTOMER_ID));
         Document orderIdEq = new Document("$eq", Arrays.asList("$" + ORDER_ID, "$$" + ORDER_ID));
-        Document orderItemTypeEq = new Document("$eq", Arrays.asList("$type", ORDER_ITEM_DOCUMENTS));
-        
-        Document orderExpression = new Document("$expr", new Document("$and", Arrays.asList(custIdEq, orderIdEq, orderItemTypeEq)));
+        Document shipmentIdEq = new Document("$eq", Arrays.asList("$" + SHIPMENT_ID, "$$" + SHIPMENT_ID));
 
-        Document RedundantFieldRemoval = new Document("$project",
+        Document orderTypeEq = new Document("$eq", Arrays.asList("$type", ORDER_DOCUMENTS));
+        Document itemTypeEq = new Document("$eq", Arrays.asList("$type", ORDER_ITEM_DOCUMENTS));
+        Document invoiceTypeEq = new Document("$eq", Arrays.asList("$type", INVOICE_DOCUMENTS));
+        Document shipmentTypeEq = new Document("$eq", Arrays.asList("$type", SHIPMENT_DOCUMENTS));
+        Document shipmentItemTypeEq = new Document("$eq", Arrays.asList("$type", SHIPMENT_ITEM_DOCUMENTS));
+
+        // TODO - ...FieldRemoval, consider removing 'invoiceId' for 'invoices', 'shipmentId' for 'shipments', ...
+        // Orders, main document
+        Document orderFilter = new Document("$expr", new Document("$and", Arrays.asList(orderTypeEq)));
+        Document getOrders = new Document("$match", orderFilter);
+        
+        // Items sub-document
+        Document itemFilter = new Document("$match", new Document("$expr", 
+                new Document("$and", Arrays.asList(custIdEq, orderIdEq, itemTypeEq))));
+        Bson itemRedundantFieldRemoval = new Document("$project",
+                Projections.exclude("_id", "type", CUSTOMER_ID, ORDER_ID));
+        Document getItems = new Document("$lookup", new Document("from", RAW_COLLECTION_NAME).append("as", "items")
+                .append("let", orderChildLet).append("pipeline", Arrays.asList(itemFilter, itemRedundantFieldRemoval)));
+               
+        // Invoices sub-document
+        Document invoiceFilter = new Document("$match", new Document("$expr", 
+                new Document("$and", Arrays.asList(custIdEq, orderIdEq, invoiceTypeEq))));
+        Bson invoiceRedundantFieldRemoval = new Document("$project",
+                Projections.exclude("_id", "type", CUSTOMER_ID, ORDER_ID));
+        Document getInvoices = new Document("$lookup", new Document("from", RAW_COLLECTION_NAME).append("as", "invoices")
+                .append("let", orderChildLet).append("pipeline", Arrays.asList(invoiceFilter, invoiceRedundantFieldRemoval)));
+               
+        // Shipment sub-document and its sub-document items
+        Document shipmentFilter = new Document("$match", new Document("$expr", 
+                new Document("$and", Arrays.asList(custIdEq, orderIdEq, shipmentTypeEq))));        
+        Bson shipmentRedundantFieldRemoval = new Document("$project",
                 Projections.exclude("_id", "type", CUSTOMER_ID, ORDER_ID));
 
-        List<Bson> FilterByOrderPipeline = Arrays.asList(new Document("$match", orderExpression),
-                RedundantFieldRemoval);
-
-        Document GetOrderItems = new Document("$lookup", new Document("from", RAW_COLLECTION_NAME).append("as", "items")
-                .append("let", params).append("pipeline", FilterByOrderPipeline));
-
-        
-        
-        Document invoiceTypeEq = new Document("$eq", Arrays.asList("$type", INVOICE_DOCUMENTS));
-        Document invoiceExpression = new Document("$expr", new Document("$and", Arrays.asList(custIdEq, orderIdEq, invoiceTypeEq)));
-
-        List<Bson> FilterByInvoicePipeline = Arrays.asList(new Document("$match", invoiceExpression),
-                RedundantFieldRemoval);
-        
-        
-        Document GetOrderInvoices = new Document("$lookup",
-                new Document("from", RAW_COLLECTION_NAME).append("as", "invoices")
-                        .append("let", params).append("pipeline", FilterByInvoicePipeline));
-
-        Document shipmentIdParam = new Document(SHIPMENT_ID, "$" + SHIPMENT_ID);
-        Document shipmentIdEq = new Document("$eq", Arrays.asList("$" + SHIPMENT_ID, "$$" + SHIPMENT_ID));
-        Document shipmentItemTypeEq = new Document("$eq", Arrays.asList("$type", SHIPMENT_DOCUMENTS));
-        Document shipmentExpression = new Document("$expr",
-                new Document("$and", Arrays.asList(custIdEq, orderIdEq, shipmentIdEq, shipmentItemTypeEq)));
-
-        Bson RedundantFieldRemoval2 = new Document("$project",
+        // handle the items in the shipment
+        Document shipmentItemFilter = new Document("$match", new Document("$expr", 
+                new Document("$and", Arrays.asList(custIdEq, orderIdEq, shipmentIdEq, shipmentItemTypeEq))));        
+        Bson shipmentItemRedundantFieldRemoval = new Document("$project",
                 Projections.exclude("_id", "type", CUSTOMER_ID, ORDER_ID, SHIPMENT_ID));
-
-        List<Bson> FilterByShipmentPipeline = Arrays.asList(new Document("$match", shipmentExpression),
-                RedundantFieldRemoval2);
+        Document getShipmentItems = new Document("$lookup", new Document("from", RAW_COLLECTION_NAME).append("as", "items")
+                .append("let", shipmentChildLet).append("pipeline", Arrays.asList(shipmentItemFilter, shipmentItemRedundantFieldRemoval)));
         
-        Document GetItemsInShipment = new Document("$lookup",
-                new Document("from", RAW_COLLECTION_NAME).append("as", "items")
-                        .append("let", shipmentIdParam).append("pipeline", FilterByShipmentPipeline));
+        // complete the shipment pipeline
+        // Move/rename the shipmentItem ID
+	Document shipmentItemsAsSimpleArray = new Document("$set",
+		new Document("items", "$items.shipmentItemId"));
+        Document getShipments = new Document("$lookup", new Document("from", RAW_COLLECTION_NAME).append("as", "shipments")
+                .append("let", orderChildLet).append("pipeline", Arrays.asList(shipmentFilter, getShipmentItems, shipmentRedundantFieldRemoval, shipmentItemsAsSimpleArray
+                )));
 
-        Document ItemsInShipmentSimpleArray = new Document("$set",
-                new Document("items", "$items.shipmentItemId"));
-        List<Bson> getShipmentPipeline = Arrays.asList(new Document("$match", orderExpression), GetItemsInShipment,
-                RedundantFieldRemoval, ItemsInShipmentSimpleArray);
-        
-        Document GetOrderShipments = new Document("$lookup",
-                new Document("from", RAW_COLLECTION_NAME).append("as", "shipments")
-                        .append("let", params).append("pipeline", getShipmentPipeline));
+        Document writeResult = new Document("$out", EMBEDDED_COLLECTION_NAME);
 
-        Document WriteResult = new Document("$out", EMBEDDED_COLLECTION_NAME);
-
-        List<Document> pipeline = Arrays.asList(GetAllOrders, GetOrderItems, GetOrderShipments, GetOrderInvoices,
-                WriteResult);
+        List<Document> pipeline = Arrays.asList(getOrders, getItems, getInvoices, getShipments, 
+                writeResult);
 
         logger.debug(new Document("x", pipeline).toJson(JsonWriterSettings.builder().indent(true).build()));
         AggregateIterable<Document> result = collection.aggregate(pipeline);
