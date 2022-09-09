@@ -287,23 +287,22 @@ public class EmbeddedItemTest implements SchemaTest {
                 .append("let", orderChildLet).append("pipeline", Arrays.asList(invoiceFilter, invoiceRedundantFieldRemoval)));
                
         // Shipment sub-document and its sub-document items
-        Document shipmentFilter = new Document("$match", new Document("$expr", 
-                new Document("$and", Arrays.asList(custIdEq, orderIdEq, shipmentTypeEq))));        
-        Bson shipmentRedundantFieldRemoval = new Document("$project",
-                Projections.exclude("_id", "type", CUSTOMER_ID, ORDER_ID));
-
         // handle the items in the shipment
         Document shipmentItemFilter = new Document("$match", new Document("$expr", 
                 new Document("$and", Arrays.asList(custIdEq, orderIdEq, shipmentIdEq, shipmentItemTypeEq))));        
         Bson shipmentItemRedundantFieldRemoval = new Document("$project",
                 Projections.exclude("_id", "type", CUSTOMER_ID, ORDER_ID, SHIPMENT_ID));
         Document getShipmentItems = new Document("$lookup", new Document("from", RAW_COLLECTION_NAME).append("as", "items")
-                .append("let", shipmentChildLet).append("pipeline", Arrays.asList(shipmentItemFilter, shipmentItemRedundantFieldRemoval)));
-        
-        // complete the shipment pipeline
+                .append("let", shipmentChildLet).append("pipeline", Arrays.asList(shipmentItemFilter, shipmentItemRedundantFieldRemoval)));        
         // Move/rename the shipmentItem ID
 	Document shipmentItemsAsSimpleArray = new Document("$set",
 		new Document("items", "$items.shipmentItemId"));
+        // handle the shipment
+        Document shipmentFilter = new Document("$match", new Document("$expr", 
+                new Document("$and", Arrays.asList(custIdEq, orderIdEq, shipmentTypeEq))));        
+        Bson shipmentRedundantFieldRemoval = new Document("$project",
+                Projections.exclude("_id", "type", CUSTOMER_ID, ORDER_ID));
+        // Put it together, shipment and its items
         Document getShipments = new Document("$lookup", new Document("from", RAW_COLLECTION_NAME).append("as", "shipments")
                 .append("let", orderChildLet).append("pipeline", Arrays.asList(shipmentFilter, getShipmentItems, shipmentRedundantFieldRemoval, shipmentItemsAsSimpleArray
                 )));
@@ -327,6 +326,7 @@ public class EmbeddedItemTest implements SchemaTest {
 
     @Override
     public void cleanup() {
+        mongoClient.close();
         return;
     }
 

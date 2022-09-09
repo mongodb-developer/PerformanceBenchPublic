@@ -16,9 +16,9 @@ public abstract interface SchemaTest {
         
     public double[] executeMeasure(int opsToTest, String subtest, JSONObject args, boolean warmup);
 	
-	public String name();
+    public String name();
 
-	public void cleanup();
+    public void cleanup();
 
-	public void warmup();
+    public void warmup();
 }

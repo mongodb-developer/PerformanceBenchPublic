@@ -264,6 +264,7 @@ public class MultiTableTest implements SchemaTest {
 
     @Override
     public void cleanup() {
+        mongoClient.close();
         executorService.shutdown();
     }
 
