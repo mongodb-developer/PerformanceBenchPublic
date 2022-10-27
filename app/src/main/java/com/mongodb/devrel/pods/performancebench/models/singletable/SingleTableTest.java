@@ -123,8 +123,7 @@ public class SingleTableTest implements SchemaTest {
 
     @Override
     public void cleanup() {
-        // TODO Auto-generated method stub
-
+        mongoClient.close();
     }
     
     // Order may be in multiple docs
