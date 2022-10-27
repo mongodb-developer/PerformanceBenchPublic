@@ -33,7 +33,7 @@ public class PerformanceBench {
         logger.info(version);
         
         
-        //Uncomment the following lines if there is a problem wiht logback.xml - 
+        //Uncomment the following lines if there is a problem with logback.xml -
         //// assume SLF4J is bound to logback in the current environment
         //LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
         //// print logback's internal status

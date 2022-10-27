@@ -141,9 +141,9 @@ public class SingleTableTest implements SchemaTest {
         return singleTable.find(query).into(rval);
     }
 
-    // Greates a new shipment for all of the items in this order
-    // Don't worry if they were already shipped - imagine they got lost
-    // we only want to test the write so lets assume we already have the order doc
+    // Creates a new shipment for all the items in this order.
+    // Don't worry if they were already shipped - imagine they got lost.
+    // We only want to test the write so let's assume we already have the order doc
     // And select N items to ship where 1<N<NitemsMax
     public int addNewShipment(int custid, int orderid, int shipmentid, int itemsinshipment, int warehouseid) {
         InsertManyResult rval;
