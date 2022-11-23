@@ -1,0 +1,23 @@
+{
+  "models": [
+    {
+      "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_lookup",
+      "className": "APIMonitorLookupTest",
+      "metrics": ["USEPIPELINE", "USEMULTIQUERY", "USESINGLECOLLECTION"],
+      "threads": 3,
+      "iterations": 100,
+      "resultsuri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
+      "resultsCollectionName": "apimonitor_results",
+      "resultsDBName": "performancebenchresults",
+      "custom": {
+        "uri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority&readPreference=secondary",
+        "apiCollectionName": "APIDetails",
+        "metricsCollectionName": "splunkModel",
+        "singleCollectionName": "APISingleCollection",
+        "dbname": "HSBC",
+        "regions": ["UK", "NY", "TK", "HK", "IN"],
+        "baseDate": "2022-11-01T00:00:00.000Z"
+      }
+    }
+  ]
+}
