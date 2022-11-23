@@ -8,6 +8,9 @@ package com.mongodb.devrel.pods.performancebench.utilities;
  *
  * @author graeme
  */
+import java.io.IOException;
+import java.io.File;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -22,8 +25,8 @@ import org.slf4j.LoggerFactory;
 import com.mongodb.client.MongoClient;
 import org.json.simple.JSONObject;
 
-/* This class generates a set of existing data as efficiently as possible */
- /* We aregoing to generate only one version of it and then use server side aggregation to */
+ /* This class generates a set of existing data as efficiently as possible */
+ /* We are going to generate only one version of it and then use server side aggregation to */
  /* generate the other versions */
 public class BulkLoadMDB {
 
@@ -57,14 +60,76 @@ public class BulkLoadMDB {
         testOptions = options;
 
         dropExistingData();
-        loadWarehouses();
-        loadProducts();
-        loadCustomers();
-        loadOrders();
-        loadOrderItems();
-        loadInvoices();
-        loadShipments();
+        //Check for a dump file matching the current test run parameters. If it exists, load the data using it.
+        String dumpFile = "singletable_data-c" + options.get("customers").toString();
+        dumpFile += "-o" + options.get("orders").toString();
+        dumpFile += "-i" + options.get("items").toString();
+        dumpFile += "-p" + options.get("products").toString();
+        dumpFile += "-s" + options.get("size").toString();
+        dumpFile += ".json";
+        File f = new File(dumpFile);
+        Boolean dataLoaded = false;
+        String cwd = Paths.get(".").toAbsolutePath().normalize().toString();
+        if(f.exists() && !f.isDirectory()) {
+            //Build command
+            List<String> commands = new ArrayList<String>();
+            commands.add("mongoimport");
+            commands.add("--uri");
+            commands.add(options.get("uri").toString());
+            commands.add("--collection");
+            commands.add(options.get("collectionName").toString());
+            commands.add("--type");
+            commands.add("JSON");
+            commands.add("--file");
+            commands.add(dumpFile);
+            System.out.println(commands);
 
+            ProcessBuilder pb = new ProcessBuilder(commands);
+            //pb.directory(new File("/home/narek"));
+            pb.redirectErrorStream(true);
+            try {
+                Process process = pb.start();
+                if (process.waitFor() == 0) {
+                    dataLoaded = true;
+                }
+            } catch (IOException e) {
+                dataLoaded = false;
+            } catch (InterruptedException e) {
+                dataLoaded = false;
+            }
+        }
+        if(!dataLoaded){
+            //If either a prior dumpfile can't be located or there was a problem restoring it, go ahead and
+            //rebuild the data set.
+            dropExistingData();
+            loadWarehouses();
+            loadProducts();
+            loadCustomers();
+            loadOrders();
+            loadOrderItems();
+            loadInvoices();
+            loadShipments();
+            //Dump the database for future use.
+            List<String> commands = new ArrayList<String>();
+            commands.add("mongoexport");
+            commands.add("--uri");
+            commands.add(options.get("uri").toString());
+            commands.add("--collection");
+            commands.add(options.get("collectionName").toString());
+            commands.add("--type");
+            commands.add("JSON");
+            commands.add("--out");
+            commands.add(dumpFile);
+            System.out.println(commands);
+
+            ProcessBuilder pb = new ProcessBuilder(commands);
+            pb.redirectErrorStream(true);
+            try {
+                Process process = pb.start();
+            } catch (IOException e) {
+                //Ignore it - if there was a problem, we'll just do a complete data rebuild on the next run.
+            }
+        }
     }
 
     void dropExistingData() {

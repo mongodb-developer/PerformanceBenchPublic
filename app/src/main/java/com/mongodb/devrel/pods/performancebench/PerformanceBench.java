@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
 
 public class PerformanceBench {
     
-    static final String version = "PerformanceBench 0.0.1";
+    static final String version = "PerformanceBench 0.0.2";
     static Logger logger;
 
     public static void main(String[] args) {
@@ -34,7 +34,6 @@ public class PerformanceBench {
         
         
         //Uncomment the following lines if there is a problem with logback.xml -
-        //// assume SLF4J is bound to logback in the current environment
         //LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
         //// print logback's internal status
         //StatusPrinter.print(lc);

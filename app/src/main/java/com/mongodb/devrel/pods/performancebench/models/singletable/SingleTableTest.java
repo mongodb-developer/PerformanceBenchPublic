@@ -1,12 +1,8 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package com.mongodb.devrel.pods.performancebench.models.singletable;
 
 /**
  *
- * @author graeme
+ * @author graeme robinson
  */
 import com.mongodb.devrel.pods.performancebench.utilities.BulkLoadMDB;
 import com.mongodb.devrel.pods.performancebench.utilities.RecordFactory;
@@ -83,23 +79,9 @@ public class SingleTableTest implements SchemaTest {
             logger.error("THIS DOESN'T LOOK CORRECT!!!");
             System.exit(1);
         }
-        int changes = addNewShipment(1, 1, ((Long)customArgs.get("items")).intValue() + 1, 5, 1);
-        logger.debug(name() + " new Shipment changes: " + changes);
-        if (changes == 0) {
-            logger.error("THIS DOESN'T LOOK CORRECT!!!");
-            System.exit(1);
-        }
-
-        changes = updateSingleItem(1, 1, 1);
-        logger.debug(name() + " updateItem changes: " + changes);
-        if (changes == 0) {
-            logger.error("THIS DOESN'T LOOK CORRECT!!! - does Customer1 Order 1 have 0 items?");
-            System.exit(1);
-        }
     }
     
-    /* Simulates N devices inserting X Documents */
-    
+
 
     // Method to take the Bulk loaded data and prepare it for testing
     // For exmaple to reshape oir index it
@@ -117,7 +99,7 @@ public class SingleTableTest implements SchemaTest {
     public void warmup() {
         singleTable.find(new Document("not", "true")).first(); // Collection scan will pull it all into cache if it can
         singleTable.find(new Document("not", "true")).first(); // Collection scan will pull it all into cache if it can
-        // If it doesnt fit then we will part fill the cache;
+        // If it doesn't fit then we will part fill the cache;
 
     }
 
@@ -130,12 +112,9 @@ public class SingleTableTest implements SchemaTest {
     public List<Document> getOrderById(int customerId, int orderId) {
         List<Document> rval = new ArrayList<>();
         String orderPrefix = String.format("C#%d#O#%d", customerId, orderId);
-        // Querying with _id field to avoid requiring index on OrderId - not sure that's
-        // a good idea from a readability perspective but Rick H wanted to try that
+        // Querying with _id field to avoid requiring index on OrderId -
         // so the query is Orderid <= _id <= Orderid + "$" (as we want orderid or
         // orderid#....)
-        // Secondary indexes are fine in MongoDB :-)
-
         Bson query = Filters.and(Filters.gte("_id", orderPrefix), Filters.lt("_id", orderPrefix + "$"));
         return singleTable.find(query).into(rval);
     }
@@ -166,11 +145,10 @@ public class SingleTableTest implements SchemaTest {
             newDocs.add(shippedItem);
         }
 
-        newDocs.add(shipment); // This is at the end and they are ordered as thats the lightweight way to
+        newDocs.add(shipment); // This is at the end and they are ordered as that's the lightweight way to
         // ensure data
         // safeness - we might have orphaned shipItems but we won't have missing
         // shipItems. No TxN required to be safe
-
         rval = singleTable.insertMany(newDocs);
         return rval.getInsertedIds().size();
     }
@@ -206,7 +184,7 @@ public class SingleTableTest implements SchemaTest {
     }
     
     @Override
-    public double[] executeMeasure(int opsToTest, String subtest, JSONObject args, boolean warmup){
+    public Document[] executeMeasure(int opsToTest, String subtest, JSONObject args, boolean warmup){
         
         return switch (subtest) {
             case "GETORDERBYID" -> getOrdersByIdTest(opsToTest, args, warmup);
@@ -217,51 +195,73 @@ public class SingleTableTest implements SchemaTest {
         };
     }
     
-    private double[] getOrdersByIdTest(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] getOrdersByIdTest(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
         
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
             int orderid = random.nextInt(orders) + 1;
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             getOrderById(custid, orderid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "GETORDERBYID");
+            results.put("customers", customers);
+            results.put("orders", orders);
+            results.put("items", ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue());
+            results.put("products", ((Long)((JSONObject)testOptions.get("custom")).get("products")).intValue());
+            results.put("size", ((Long)((JSONObject)testOptions.get("custom")).get("size")).intValue());
+            times[o] = results;
         }
         return times;
     }
 
-    private double[] addShipmentsTest(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] addShipmentsTest(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
         
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
             int orderid = random.nextInt(orders) + 1;
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             getOrderById(custid, orderid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "ADDSHIPMENT");
+            results.put("customers", customers);
+            results.put("orders", orders);
+            results.put("items", ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue());
+            results.put("products", ((Long)((JSONObject)testOptions.get("custom")).get("products")).intValue());
+            results.put("size", ((Long)((JSONObject)testOptions.get("custom")).get("size")).intValue());
+            times[o] = results;
         }
         return times;
     }
 
-    private double[] intItemCountTest(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] intItemCountTest(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         int items = ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
         
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
@@ -269,22 +269,33 @@ public class SingleTableTest implements SchemaTest {
             int itemid = random.nextInt(items / 2) + 1; // By selecting a random number up to
             // half items its more likely to be
             // there.
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             updateSingleItem(custid, orderid, itemid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "INCITEMCOUNT");
+            results.put("customers", customers);
+            results.put("orders", orders);
+            results.put("items", ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue());
+            results.put("products", ((Long)((JSONObject)testOptions.get("custom")).get("products")).intValue());
+            results.put("size", ((Long)((JSONObject)testOptions.get("custom")).get("size")).intValue());
+            times[o] = results;
         }
         return times;
     }
 
-    private double[] intItemCountTestWithDate(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] intItemCountTestWithDate(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         int items = ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
         
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
@@ -292,11 +303,22 @@ public class SingleTableTest implements SchemaTest {
             int itemid = random.nextInt(items / 2) + 1; // By selecting a random number up to
             // half items its more likely to be
             // there.
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             updateMultiItem(custid, orderid, itemid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "INCMULTIITEM");
+            results.put("customers", customers);
+            results.put("orders", orders);
+            results.put("items", ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue());
+            results.put("products", ((Long)((JSONObject)testOptions.get("custom")).get("products")).intValue());
+            results.put("size", ((Long)((JSONObject)testOptions.get("custom")).get("size")).intValue());
+            times[o] = results;
         }
         return times;
     }

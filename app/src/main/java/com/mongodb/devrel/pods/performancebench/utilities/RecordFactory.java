@@ -52,10 +52,10 @@ public class RecordFactory {
         Document whDoc;
         if (whid % 2 == 0) {
             whDoc = Document.parse(
-                    "{\"Country\":\"Sweden\",\"County\":\"Vastra Gotaland\",\"City\":\"Goteborg\",\"Street\":\"MainStreet\",\"Number\":20,\"ZipCode\":41111}");
+                    "{\"Country\":\"Sweden\",\"County\":\"Vastra Gotaland\",\"City\":\"Goteborg\",\"Street\":\"MainStreet\",\"Number\":20,\"ZipCode\":41111,\"type\":\"warehouses\"}");
         } else {
             whDoc = Document.parse(
-                    "{\"Country\":\"Sweden\",\"County\":\"Vastra Gotaland\",\"City\":\"Boras\",\"Street\":\"RiverStreet\",\"Number\":20,\"ZipCode\":11111}");
+                    "{\"Country\":\"Sweden\",\"County\":\"Vastra Gotaland\",\"City\":\"Boras\",\"Street\":\"RiverStreet\",\"Number\":20,\"ZipCode\":11111,\"type\":\"warehouses\"}");
         }
         whDoc.put("warehouseId", whid);
         return whDoc;
@@ -66,7 +66,7 @@ public class RecordFactory {
         String email = String.format("%s@somewhere.com", getEmail(10));
         custDoc.put("customerId", custid);
         custDoc.put("email", email);
-        custDoc.put("type", "customer");
+        custDoc.put("type", "customers");
         custDoc.put("data", getDescription(random.nextInt(6400)));
         return custDoc;
     }
@@ -75,7 +75,7 @@ public class RecordFactory {
         Document prodDoc = new Document();
         prodDoc.put("productId", productid); // TODO - pull out this formatting to a new class
         prodDoc.put("warehouseId", warehouseid);
-        prodDoc.put("type", "product");
+        prodDoc.put("type", "products");
         prodDoc.put("name", "Product_" + productid);
         prodDoc.put("qty", random.nextInt(100) + 100);
         prodDoc.put("price", random.nextInt(50) + 10);
@@ -88,7 +88,7 @@ public class RecordFactory {
         orderDoc.put("orderId", orderid);
         orderDoc.put("customerId", custid);
         orderDoc.put("ammount", 0); // will be updated later
-        orderDoc.put("type", "order");
+        orderDoc.put("type", "orders");
         cal.add(Calendar.DAY_OF_YEAR, -random.nextInt(30));
         orderDoc.put("date", cal.getTime());
         orderDoc.put("description", getDescription(random.nextInt(50)));
@@ -97,7 +97,7 @@ public class RecordFactory {
 
     public Document getOrderItem(int custid, int orderid, int itemid, int productid, int datasize) {
         Document orderItemDoc = new Document();
-        orderItemDoc.put("type", "orderitem");
+        orderItemDoc.put("type", "orderitems");
         orderItemDoc.put("productId", productid);
         orderItemDoc.put("date", cal.getTime());
         orderItemDoc.put("orderId", orderid);
@@ -114,7 +114,7 @@ public class RecordFactory {
     public Document getInvoice(int custid, int orderid, int invoiceid) {
         Document invoiceDoc = new Document();
         cal.add(Calendar.DAY_OF_YEAR, 1);
-        invoiceDoc.put("type", "invoice");
+        invoiceDoc.put("type", "invoices");
         invoiceDoc.put("invoiceId", invoiceid);
         invoiceDoc.put("date", cal.getTime());
         invoiceDoc.put("customerId", custid);
@@ -128,7 +128,7 @@ public class RecordFactory {
         shipmentDoc.put("customerId", customerid);
         shipmentDoc.put("orderId", orderid);
         shipmentDoc.put("shipmentId", shipmentid);
-        shipmentDoc.put("type", "shipment");
+        shipmentDoc.put("type", "shipments");
         shipmentDoc.put("date", cal.getTime());
         shipmentDoc.put("shipTo", new Document().append("Country", "Sweden").append("County", "Vastra Gotaland")
                 .append("City", "Goteborg").append("Street", "Slanbarsvagen")
@@ -144,7 +144,7 @@ public class RecordFactory {
         shipItemDoc.put("orderId", orderid);
         shipItemDoc.put("shipmentId", shipmentid);
         shipItemDoc.put("shipmentItemId", shipitemid);
-        shipItemDoc.put("type", "shipmentitem");
+        shipItemDoc.put("type", "shipmentitems");
         return shipItemDoc;
     }
 }

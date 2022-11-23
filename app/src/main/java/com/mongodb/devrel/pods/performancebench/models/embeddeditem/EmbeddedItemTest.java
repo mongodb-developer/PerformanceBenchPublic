@@ -79,7 +79,7 @@ public class EmbeddedItemTest implements SchemaTest {
         
         EMBEDDED_COLLECTION_NAME = (String)customArgs.get("embedded_collection_name");
         RAW_COLLECTION_NAME = (String)customArgs.get("collectionName");
-        DB_NAME = (String)customArgs.get("db_name");
+        DB_NAME = (String)customArgs.get("dbname");
         SHIPMENT_DOCUMENTS = (String)customArgs.get("shipment_type");
         SHIPMENT_ITEM_DOCUMENTS = (String)customArgs.get("shipment_item_type");
         SHIPMENT_ITEM_ID = (String)customArgs.get("shipment_item_id");
@@ -112,27 +112,14 @@ public class EmbeddedItemTest implements SchemaTest {
             logger.error("THIS DOESN'T LOOK CORRECT!!!");
             System.exit(1);
         }
-        int changes = addNewShipment(1, 1, ((Long)customArgs.get("items")).intValue() + 1, 5, 1);
-        logger.debug(name() + " new Shipment changes: " + changes);
-        if (changes == 0) {
-            logger.error("THIS DOESN'T LOOK CORRECT!!!");
-            System.exit(1);
-        }
-
-        changes = updateSingleItem(1, 1, 1);
-        logger.debug(name() + " updateItem changes: " + changes);
-        if (changes == 0) {
-            logger.error("THIS DOESN'T LOOK CORRECT!!! - does Customer1 Order 1 have 0 items?");
-            System.exit(1);
-        }
     }
     
     /* Simulates N devices inserting X Documents */
 
 
     @Override
-    public double[] executeMeasure(int opsToTest, String subtest, JSONObject args, boolean warmup){
-        
+    public Document[] executeMeasure(int opsToTest, String subtest, JSONObject args, boolean warmup){
+
         return switch (subtest) {
             case "GETORDERBYID" -> getOrdersByIdTest(opsToTest, args, warmup);
             case "ADDSHIPMENT" -> addShipmentsTest(opsToTest, args, warmup);
@@ -142,51 +129,73 @@ public class EmbeddedItemTest implements SchemaTest {
         };
     }
     
-    private double[] getOrdersByIdTest(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] getOrdersByIdTest(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
         
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
             int orderid = random.nextInt(orders) + 1;
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             getOrderById(custid, orderid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "GETORDERBYID");
+            results.put("customers", customers);
+            results.put("orders", orders);
+            results.put("items", ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue());
+            results.put("products", ((Long)((JSONObject)testOptions.get("custom")).get("products")).intValue());
+            results.put("size", ((Long)((JSONObject)testOptions.get("custom")).get("size")).intValue());
+            times[o] = results;
         }
         return times;
     }
 
-    private double[] addShipmentsTest(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] addShipmentsTest(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
         
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
             int orderid = random.nextInt(orders) + 1;
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             getOrderById(custid, orderid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "ADDSHIPMENT");
+            results.put("customers", customers);
+            results.put("orders", orders);
+            results.put("items", ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue());
+            results.put("products", ((Long)((JSONObject)testOptions.get("custom")).get("products")).intValue());
+            results.put("size", ((Long)((JSONObject)testOptions.get("custom")).get("size")).intValue());
+            times[o] = results;
         }
         return times;
     }
 
-    private double[] intItemCountTest(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] intItemCountTest(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         int items = ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
         
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
@@ -194,22 +203,33 @@ public class EmbeddedItemTest implements SchemaTest {
             int itemid = random.nextInt(items / 2) + 1; // By selecting a random number up to
             // half items its more likely to be
             // there.
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             updateSingleItem(custid, orderid, itemid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "INCITEMCOUNT");
+            results.put("customers", customers);
+            results.put("orders", orders);
+            results.put("items", ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue());
+            results.put("products", ((Long)((JSONObject)testOptions.get("custom")).get("products")).intValue());
+            results.put("size", ((Long)((JSONObject)testOptions.get("custom")).get("size")).intValue());
+            times[o] = results;
         }
         return times;
     }
 
-    private double[] intItemCountTestWithDate(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] intItemCountTestWithDate(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         int items = ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
         
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
@@ -217,11 +237,22 @@ public class EmbeddedItemTest implements SchemaTest {
             int itemid = random.nextInt(items / 2) + 1; // By selecting a random number up to
             // half items its more likely to be
             // there.
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             updateMultiItem(custid, orderid, itemid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "INCMULTIITEM");
+            results.put("customers", customers);
+            results.put("orders", orders);
+            results.put("items", ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue());
+            results.put("products", ((Long)((JSONObject)testOptions.get("custom")).get("products")).intValue());
+            results.put("size", ((Long)((JSONObject)testOptions.get("custom")).get("size")).intValue());
+            times[o] = results;
         }
         return times;
     }
@@ -295,7 +326,7 @@ public class EmbeddedItemTest implements SchemaTest {
         Document getShipmentItems = new Document("$lookup", new Document("from", RAW_COLLECTION_NAME).append("as", "items")
                 .append("let", shipmentChildLet).append("pipeline", Arrays.asList(shipmentItemFilter, shipmentItemRedundantFieldRemoval)));        
         // Move/rename the shipmentItem ID
-	Document shipmentItemsAsSimpleArray = new Document("$set",
+	    Document shipmentItemsAsSimpleArray = new Document("$set",
 		new Document("items", "$items.shipmentItemId"));
         // handle the shipment
         Document shipmentFilter = new Document("$match", new Document("$expr", 

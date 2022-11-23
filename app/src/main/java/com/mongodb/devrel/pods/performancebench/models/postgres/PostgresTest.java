@@ -107,10 +107,10 @@ public class PostgresTest implements SchemaTest {
     @Override
     public void warmup() {
         // Preload each table to pull it all into cache if it can
-        //Requires POstgres 9.4 or later, plus a one-time run of 'CREATE EXTENSION pg_prewarm'
+        // Requires Postgres 9.4 or later, plus a one-time run of 'CREATE EXTENSION pg_prewarm'
         //Instructions on CREATE EXTENSION at https://stackoverflow.com/questions/3862648/how-to-use-install-dblink-in-postgresql/13264961#13264961 
         //Be careful to apply to correct schema. I added the command to resetSchema.sql
-        //If it doesnt fit then we will part fill the cache;
+        //If it doesn't fit then we will part fill the cache;
         
         String[] tabletypes = { "orderstable", "orderitemstable", "invoicestable", "shipmentstable", "shipmentitemstable", "productstable", "warehousestable", "customerstable" };
         
@@ -135,8 +135,8 @@ public class PostgresTest implements SchemaTest {
     }
     
         @Override
-    public double[] executeMeasure(int opsToTest, String subtest, JSONObject args, boolean warmup){
-        
+    public Document[] executeMeasure(int opsToTest, String subtest, JSONObject args, boolean warmup){
+
         return switch (subtest) {
             case "GETORDERBYID" -> getOrdersByIdTest(opsToTest, args, warmup);
             case "ADDSHIPMENT" -> addShipmentsTest(opsToTest, args, warmup);
@@ -147,21 +147,27 @@ public class PostgresTest implements SchemaTest {
     }
     
     
-    private double[] getOrdersByIdTest(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] getOrdersByIdTest(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
         
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
             int orderid = random.nextInt(orders) + 1;
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             getOrderById(custid, orderid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "GETORDERBYID");
+            times[o] = results;
         }
         return times;
     }
@@ -198,31 +204,37 @@ public class PostgresTest implements SchemaTest {
     }
     
     
-    private double[] addShipmentsTest(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] addShipmentsTest(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         int warehouses = ((Long)((JSONObject)testOptions.get("custom")).get("warehouses")).intValue();
         int shipmentitems = ((Long)((JSONObject)testOptions.get("custom")).get("shipmentitems")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
                 
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
             int orderid = random.nextInt(orders) + 1;
             int warehouseid = random.nextInt(warehouses) + 1;
             int itemsinshipment = random.nextInt(shipmentitems) + 1;
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             addNewShipment(custid, orderid, 1, itemsinshipment, warehouseid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "ADDSHIPMENT");
+            times[o] = results;
         }
         return times;
     }
     
     
-    // Greates a new shipment for all of the items in this order
+    // Creates a new shipment for all of the items in this order
     // Don't worry if they were already shipped - imagine they got lost
     // we only want to test the write so lets assume we already have the order doc
     // And select N items to ship where 1<N<NitemsMax
@@ -326,13 +338,13 @@ public class PostgresTest implements SchemaTest {
     }
     
     
-    private double[] intItemCountTest(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] intItemCountTest(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         int items = ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
         
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
@@ -340,11 +352,17 @@ public class PostgresTest implements SchemaTest {
             int itemid = random.nextInt(items / 2) + 1; // By selecting a random number up to
             // half items its more likely to be
             // there.
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             updateSingleItem(custid, orderid, itemid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "INCITEMCOUNT");
+            times[o] = results;
         }
         return times;
     }
@@ -376,13 +394,13 @@ public class PostgresTest implements SchemaTest {
     }
         
 
-    private double[] intItemCountTestWithDate(int opsToTest, JSONObject testOptions, boolean warmup) {
+    private Document[] intItemCountTestWithDate(int opsToTest, JSONObject testOptions, boolean warmup) {
 
         int customers = ((Long)((JSONObject)testOptions.get("custom")).get("customers")).intValue();
         int orders = ((Long)((JSONObject)testOptions.get("custom")).get("orders")).intValue();
         int items = ((Long)((JSONObject)testOptions.get("custom")).get("items")).intValue();
         
-        double[] times = new double[opsToTest];
+        Document[] times = new Document[opsToTest];
         
         for (int o = 0; o < opsToTest; o++) {
             int custid = random.nextInt(customers) + 1;
@@ -390,11 +408,17 @@ public class PostgresTest implements SchemaTest {
             int itemid = random.nextInt(items / 2) + 1; // By selecting a random number up to
             // half items its more likely to be
             // there.
+            long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
             long startTime = System.nanoTime();
             updateMultiItem(custid, orderid, itemid);
             long endTime = System.nanoTime();
-            long duration = (endTime - startTime) / 1000; // Microseconds
-            times[o] = duration;
+            long duration = (endTime - startTime) / 1000000; // Milliseconds
+            Document results = new Document();
+            results.put("startTime", epTime);
+            results.put("duration", duration);
+            results.put("test", this.name());
+            results.put("subtest", "INCMULTIITEM");
+            times[o] = results;
         }
         return times;
     }    
