@@ -5,20 +5,16 @@ package com.mongodb.devrel.pods.performancebench;
 
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.core.util.StatusPrinter;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
+import org.apache.commons.cli.ParseException;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Iterator;
-import java.util.logging.LogManager;
-import org.apache.commons.cli.ParseException;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-//import org.slf4j.bridge.SLF4JBridgeHandler;
 
 public class PerformanceBench {
 
@@ -27,18 +23,22 @@ public class PerformanceBench {
 
     public static void main(String[] args) {
 
+        //Application config options will be read from a JSON file specified as
+        //a command line parameter in to this object which is an extension of the
+        //BSON document class.
+        //See the README for details of the config file format.
         BenchOptions options = null;
 
         logger = LoggerFactory.getLogger(PerformanceBench.class);
         logger.info(version);
 
 
-        //Uncomment the following lines if there is a problem with logback.xml -
-        LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
-        // print logback's internal status
-        StatusPrinter.print(lc);
+        //Uncomment the following lines for debugging info if there is a problem with logback.xml -
+        //LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+        //// print logback's internal status
+        //StatusPrinter.print(lc);
 
-
+        //Attempt to read the JSON config file.
         try {
             options = new BenchOptions(args);
         } catch (ParseException e) {
@@ -57,6 +57,10 @@ public class PerformanceBench {
             logger.error(e.getMessage());
             System.exit(1);
         }
+
+
+        //For each model specified in the config file, attempt to instantiate an instance of the
+        //corresponding class and execute its measures.
         for (Iterator<JSONObject> it = ((JSONArray)options.get("models")).iterator(); it.hasNext();) {
             JSONObject modelArgs = it.next();
             SchemaTest st = null;
@@ -69,11 +73,17 @@ public class PerformanceBench {
                 logger.error(e.getMessage());
                 System.exit(1);
             }
+            //Execute the model class' initialize method. This is intended to carry out steps such as connection pool initialization
+            //and test data loading / preparation.
             st.initialize(modelArgs);
             TestRunner runner = new TestRunner();
             logger.info("Running tests...");
+            //Execute each measure defined by the model.
             runner.runTest(st, modelArgs);
-            st.cleanup();
+            //Execute the model's cleanup method. This is intended for tasks such as connection pool disconnects and test data removal
+            //or reset if appropriate, but can also be used to perform any necessary calculations on the results' data, such as aggregations,
+            //calculations of averages / means / percentile values etc.
+            st.cleanup(modelArgs);
         }
 
     }

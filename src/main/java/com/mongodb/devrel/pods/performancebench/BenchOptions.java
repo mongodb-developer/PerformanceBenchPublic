@@ -7,6 +7,14 @@ package com.mongodb.devrel.pods.performancebench;
 /**
  *
  * @author graeme
+ *
+ * Class to read and hold Performance Bench configuration options as a BSON document.
+ *
+ * Path to a JSON document holding the configurarion options is passed to the application
+ * as a command-line parameter. The JSON file is expected to have a single top level field - an array
+ * named "models". Each entry in the array is a document describing a set of tests to be performed
+ * by PerformanceBench. See the project README for a full decscription of the expected JSON format.
+ *
  */
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -30,8 +38,7 @@ public class BenchOptions extends Document {
 
         CommandLineParser parser = new DefaultParser();
 
-        Options cliopt;
-        cliopt = new Options();
+        Options cliopt = new Options();
         cliopt.addOption("c", "config", true, "Config file with parameters");
 
         CommandLine cmd;
@@ -39,7 +46,7 @@ public class BenchOptions extends Document {
             cmd = parser.parse(cliopt, args);
         } catch (ParseException e) {
             HelpFormatter formatter = new HelpFormatter();
-            formatter.printHelp("OrderBench", cliopt);
+            formatter.printHelp("PerformanceBench", cliopt);
             throw e;
         }
 

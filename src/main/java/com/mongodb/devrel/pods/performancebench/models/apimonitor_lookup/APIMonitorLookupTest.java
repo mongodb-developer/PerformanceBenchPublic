@@ -24,7 +24,7 @@ public class APIMonitorLookupTest implements SchemaTest {
 
     Logger logger;
     MongoClient mongoClient;
-    MongoCollection<Document> apiCollection, metricsCollection, singleCollection;
+    MongoCollection<Document> apiCollection, metricsCollection;
     JSONObject args;
     JSONObject customArgs;
 
@@ -33,16 +33,40 @@ public class APIMonitorLookupTest implements SchemaTest {
     }
 
     @Override
-    public void cleanup() {
+    public void cleanup(JSONObject args) {
         mongoClient.close();
+
+        //                Arrays.sort(alltimes);
+//                int timelen = alltimes.length;
+//                long total = 0;
+//                for (int t = 0; t < timelen; t++) {
+//                    total += alltimes[t];
+//                }
+//
+//                double secs = (double) (endTime - startTime) / 1000000000.0;
+//
+//                logger.info(String.format(
+//                        "%s:%s max(ms): %.2f, min(ms): %.2f, mean(ms): %.2f, 95th centile(ms): %.2f, throughput(qps): %.1f",
+//                        test.name(), st,
+//                        alltimes[timelen - 1] / 1000.0,
+//                        alltimes[0] / 1000.0,
+//                        (total / 1000.0) / timelen,
+//                        alltimes[(int) (timelen * .95)] / 1000.0,
+//                        (double) timelen / secs));
+
     }
 
     @Override
     public void initialize(JSONObject newArgs){
 
-        this.args = newArgs;
+
+        this.args = args;
+
+        //Retrieve settings for this particular model.
         this.customArgs = (JSONObject)args.get("custom");
 
+        //Connect to the MongoDB instance with the test data. This can be a different instance
+        //from the one PerformanceBench uses to save test results.
         mongoClient = MongoClients.create(customArgs.get("uri").toString());
         // Quick check of connection up front
         Document pingResult = mongoClient.getDatabase("system").runCommand(new Document("hello", 1));
@@ -50,7 +74,6 @@ public class APIMonitorLookupTest implements SchemaTest {
 
         apiCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("apiCollectionName"));
         metricsCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("metricsCollectionName"));
-        singleCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("singleCollectionName"));
 
         /* Quick check things are working */
         logger.debug("Quick self test - just to see we are getting results");
@@ -70,40 +93,78 @@ public class APIMonitorLookupTest implements SchemaTest {
     }
 
     @Override
-    public void warmup() {
-        apiCollection.find(new Document("not", "true")).first(); // Collection scan will pull it all into cache if it can
-        metricsCollection.find(new Document("not", "true")).first(); // Collection scan will pull it all into cache if it can
-        singleCollection.find(new Document("not", "true")).first(); // Collection scan will pull it all into cache if it can
-
-        // If it doesn't fit then we will part fill the cache;
+    public void warmup(JSONObject args) {
+        // Collection scan will pull it all into cache if it can.
+        // If it doesn't fit then we will part fill the cache
+        apiCollection.find(new Document("not", "true")).first();
+        metricsCollection.find(new Document("not", "true")).first();
 
     }
 
-    @Override
-    public Document[] executeMeasure(int opsToTest, String subtest, JSONObject args, boolean warmup){
+    public Document[] executeMeasure(int opsToTest, String measure, JSONObject args){
 
-        return switch (subtest) {
-            case "USEPIPELINE" -> getPipelineResults(opsToTest, args, warmup);
-            case "USEMULTIQUERY" -> getMultiQueryResults(opsToTest, args, warmup);
-            case "USESINGLECOLLECTION" -> getSingleCollectionResults(opsToTest, args, warmup);
+        //Branch based on the measure to be executed
+        return switch (measure) {
+            case "USEPIPELINE" -> getPipelineResults(opsToTest);
             default -> null;
         };
     }
 
-    private Document[] getPipelineResults(int opsToTest, JSONObject testOptions, boolean warmup) {
+    /**
+     *
+     * @param opsToTest - the number of iterations of the test to carry out
+     * @return an array of BSON documents containing the execution time plus other
+     *          metadata, for each test iteration. PerformanceBench will write these
+     *          documents to a specified collection for later analysis.
+     *
+     * This method executes the API data aggregation process using the following
+     * approach:
+     *
+     * 1. For each geographic region in turn, run an aggregation pipeline where the initial
+     *      match stage retrieves all the API documents for API's in that region.
+     * 2. After the initial match stage, perform a $lookup of corresponding metrics documents
+     *      to determine the total number of calls to each api, as well as the success and
+     *      failure rates of those calls, for the time period from the baseDate specified in
+     *      the model's configuration file to the current date. The $lookup will use a sub-pipline
+     *      to do these calculations.
+     * 3. On completion of the aggregation pipeline, the returned metrics should be appended to the
+     *      corresponding API documents retrieved by the query in step 1 (so the eventual output
+     *      is comparable to the output of the $lookup pipeline).
+     * 4. On completion of each test iteration, create a BSON document for each geographic region containing:
+     *      The start time of the test iteration for this region (in epoch format)
+     *      The duration of the test iteration for this region in milliseconds
+     *      The name of the model (this.name())
+     *      The name of the measure ("USEINQUERY")
+     *      The geographic region tested
+     *      The baseDate used to filter metrics records;
+     *
+     *      The total number of results documents returned should equal opsToTest * number of regions
+     */
+    private Document[] getPipelineResults(int opsToTest) {
 
-        JSONArray regions = (JSONArray)((JSONObject)testOptions.get("custom")).get("regions");
-        String baseDate = (String)((JSONObject)testOptions.get("custom")).get("baseDate");
-        String metricsCollectionName = (String)((JSONObject)testOptions.get("custom")).get("metricsCollectionName");
+        //We are going to run the aggregation once for each geographic region. Get the
+        //list of regions from the model's configuration.
+        JSONArray regions = (JSONArray)customArgs.get("regions");
 
+        //We'll be filtering to only return data where the creationDate is
+        //greater than or equal to "baseDate" in the model's configuration file.
+        String baseDate = (String)customArgs.get("baseDate");
+
+        String metricsCollectionName = (String)customArgs.get("metricsCollectionName");
+
+        //The times array is used to store BSON documents with the execution
+        //times of each iteration.
         Document[] times = new Document[opsToTest * regions.size()];
         int currentTest = 0;
         for (int o = 0; o < opsToTest; o++) {
 
+            //Iterate for each region
             for(Object regionObj : regions) {
 
                 String region = (String) regionObj;
 
+                //Convert baseDate from the config file to a date object. We'll filter for records where the
+                //creationDate is greater than or equal to this date.
                 Instant instant = Instant.parse(baseDate); //"2000-01-01T00:00:00.000Z"
                 Date baseTimeStamp = Date.from(instant);
 
@@ -165,10 +226,11 @@ public class APIMonitorLookupTest implements SchemaTest {
                     new Document("$limit", 1000L)
                 );
 
-                long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
                 long startTime = System.nanoTime();
+                //nanotime is NOT necessarily epoch time so don't use it as a timestamp
+                long epTime = System.currentTimeMillis();
                 try {
-                    apiCollection.aggregate(aggPipeline).forEach(doc -> System.out.println(doc.toJson()));
+                    apiCollection.aggregate(aggPipeline).wait();//.forEach(doc -> System.out.println(doc.toJson()));
                 } catch (Exception e) {
                 }
                 long endTime = System.nanoTime();
@@ -176,237 +238,10 @@ public class APIMonitorLookupTest implements SchemaTest {
                 Document results = new Document();
                 results.put("startTime", epTime);
                 results.put("duration", duration);
-                results.put("test", this.name());
-                results.put("subtest", "USEPIPELINE");
+                results.put("model", this.name());
+                results.put("measure", "USEPIPELINE");
                 results.put("region", region);
-                results.put("startDate", baseTimeStamp);
-                times[currentTest] = results;
-                currentTest++;
-            }
-        }
-        return times;
-    }
-
-    private Document[] getMultiQueryResults(int opsToTest, JSONObject testOptions, boolean warmup) {
-
-        JSONArray regions = (JSONArray)((JSONObject)testOptions.get("custom")).get("regions");
-        String baseDate = (String)((JSONObject)testOptions.get("custom")).get("baseDate");
-        String metricsCollectionName = (String)customArgs.get("metricsCollectionName");
-
-        Document[] times = new Document[opsToTest * regions.size()];
-        int currentTest = 0;
-
-        for (int o = 0; o < opsToTest; o++) {
-
-            ////Select a random region
-            //String region = (String)regions.get(ThreadLocalRandom.current().nextInt(regions.size()));
-            for(Object regionObj : regions) {
-
-                String region = (String) regionObj;
-
-                //Select a random date range between base-date and the current date
-                Instant instant = Instant.parse(baseDate); //"2000-01-01T00:00:00.000Z"
-                Date baseTimeStamp = Date.from(instant);
-
-                long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
-                long startTime = System.nanoTime();
-
-                //Get the APIs for the selected region
-                ArrayList<Document> apis = new ArrayList<>();
-                ArrayList<String> api_ids = new ArrayList<>();
-                MongoCursor<Document> cursor = apiCollection.find(eq("deployments.region", region)).iterator();
-                try {
-                    while (cursor.hasNext()) {
-
-                        Document api = (Document) cursor.next();
-                        apis.add(api);
-                        api_ids.add(api.getString("_id"));
-                    }
-                } finally {
-                    cursor.close();
-                }
-
-                //For each API, get the metrics
-                List<Document> aggPipeline = Arrays.asList(
-                    new Document("$match",
-                        new Document("$and", Arrays.asList(
-                            new Document("apiDetails.appname", new Document("$in", api_ids)),
-                            new Document("$expr",
-                                new Document("$and", Arrays.asList(
-                                    new Document("$gte", Arrays.asList("$creationDate", baseTimeStamp)),
-                                    new Document("$lte", Arrays.asList("$creationDate", "$$NOW"))
-                                ))
-                            )
-                        ))
-                    ),
-                    new Document("$group",
-                        new Document("_id", "$apiDetails.appname")
-                            .append("totalVolume", new Document("$sum", "$transactionVolume"))
-                            .append("totalError", new Document("$sum", "$errorCount"))
-                            .append("totalSuccess", new Document("$sum", "$successCount"))
-                    ),
-                    new Document("$project",
-                        new Document("aggregatedResponse",
-                            new Document("totalTransactionVolume", "$totalVolume")
-                                .append("errorRate",
-                                    new Document("$cond", Arrays.asList(
-                                        new Document("$eq", Arrays.asList("$totalVolume", 0L)),
-                                        0L,
-                                        new Document("$multiply", Arrays.asList(
-                                            new Document("$divide", Arrays.asList("$totalError", "$totalVolume")),
-                                            100L
-                                        ))
-                                    ))
-                                )
-                                .append("successRate",
-                                    new Document("$cond", Arrays.asList(
-                                        new Document("$eq", Arrays.asList("$totalVolume", 0L)),
-                                        0L,
-                                        new Document("$multiply", Arrays.asList(
-                                            new Document("$divide", Arrays.asList("$totalSuccess", "$totalVolume")),
-                                            100L
-                                        )
-                                    ))
-                                ))
-                        )
-                    )
-                );
-                metricsCollection.aggregate(aggPipeline).forEach(doc -> {
-                    for (int i = 0; i < apis.size(); i++) {
-                        Document api = apis.get(i);
-                        if (((String) api.get("_id")).equals((String) doc.get("_id"))) {
-                            api.append("results", doc);
-                            break;
-                        }
-                    }
-                    ;
-                });
-
-                long endTime = System.nanoTime();
-                long duration = (endTime - startTime) / 1000000; // Milliseconds
-                Document results = new Document();
-                results.put("startTime", epTime);
-                results.put("duration", duration);
-                results.put("test", this.name());
-                results.put("subtest", "USEMULTIQUERY");
-                results.put("region", region);
-                results.put("startDate", baseTimeStamp);
-                times[currentTest] = results;
-                currentTest++;
-            }
-        }
-        return times;
-    }
-
-    private Document[] getSingleCollectionResults(int opsToTest, JSONObject testOptions, boolean warmup) {
-
-        JSONArray regions = (JSONArray)((JSONObject)testOptions.get("custom")).get("regions");
-        String baseDate = (String)((JSONObject)testOptions.get("custom")).get("baseDate");
-        String metricsCollectionName = (String)customArgs.get("metricsCollectionName");
-
-        Document[] times = new Document[opsToTest * regions.size()];
-        int currentTest = 0;
-
-        for (int o = 0; o < opsToTest; o++) {
-
-            for(Object regionObj : regions) {
-
-                String region = (String)regionObj;
-
-                Instant instant = Instant.parse(baseDate); //"2000-01-01T00:00:00.000Z"
-                Date baseTimeStamp = Date.from(instant);
-
-                Bson filter = and(Arrays.asList(eq("deployments.region", region), or(Arrays.asList(and(Arrays.asList(gte("creationDate",
-                        baseTimeStamp), lt("creationDate",
-                        new java.util.Date()))), exists("creationDate", false)))));
-                Bson sort = eq("_id", 1L);
-
-                long epTime = System.currentTimeMillis(); //nanotime is NOT necessarily epoch time so don't use it as a timestamp
-                long startTime = System.nanoTime();
-
-                MongoCursor<Document> cursor = singleCollection.find(filter).sort(sort).iterator();
-                String api_id = "";
-                Long tCount = 0L;
-                Long fCount = 0L;
-                Long sCount = 0L;
-                Document api = null;
-                ArrayList<Document> apis = new ArrayList<>();
-                try {
-                    while (cursor.hasNext()) {
-                        Document newdoc = (Document) cursor.next();
-                        if (!api_id.equals(((Document) newdoc.get("apiDetails")).getString("appname"))) {
-                            //We've advanced to records for a new API
-                            //Check if this is the first in the result set
-                            if (!api_id.equals("")) {
-                                //Calculate the success and error rates
-                                Document aggregatedResponse = new Document();
-                                aggregatedResponse.append("totalTransactionVolume", tCount);
-                                if (tCount == 0) {
-                                    aggregatedResponse.append("errorRate", 0L);
-                                    aggregatedResponse.append("successRate", 0L);
-                                } else {
-                                    Long successRate = ((sCount * 100L) / tCount);
-                                    Long errorRate = ((fCount * 100L) / tCount);
-                                    aggregatedResponse.append("errorRate", errorRate);
-                                    aggregatedResponse.append("successRate", successRate);
-                                }
-                                Document results = new Document();
-                                results.append("aggregatedResponse", aggregatedResponse);
-                                api.append("results", results);
-                                apis.add(api);
-                            }
-                            tCount = 0L;
-                            fCount = 0L;
-                            sCount = 0L;
-                            api_id = ((Document) newdoc.get("apiDetails")).getString("appname");
-                            api = newdoc;
-                        } else {
-                            //This is a record for the existing API - update the transaction/success/error counts
-                            Integer newTransactions = newdoc.getInteger("transactionVolume");
-                            if (newTransactions != null) {
-                                tCount += newTransactions;
-                            }
-                            Integer newErrors = newdoc.getInteger("errorCount");
-                            if (newErrors != null) {
-                                fCount += newErrors;
-                            }
-                            Integer newSuccess = newdoc.getInteger("successCount");
-                            if (newSuccess != null) {
-                                sCount += newSuccess;
-                            }
-                        }
-                    }
-                    //Remember to add the final API to the list
-                    if (api != null) {
-                        Document aggregatedResponse = new Document();
-                        aggregatedResponse.append("totalTransactionVolume", tCount);
-                        if (tCount == 0) {
-                            aggregatedResponse.append("errorRate", 0L);
-                            aggregatedResponse.append("successRate", 0L);
-                        } else {
-                            Long successRate = ((sCount * 100L) / tCount);
-                            Long errorRate = ((fCount * 100L) / tCount);
-                            aggregatedResponse.append("errorRate", errorRate);
-                            aggregatedResponse.append("successRate", successRate);
-                        }
-                        Document results = new Document();
-                        results.append("aggregatedResponse", aggregatedResponse);
-                        api.append("results", results);
-                        apis.add(api);
-                    }
-                } finally {
-                    cursor.close();
-                }
-
-                long endTime = System.nanoTime();
-                long duration = (endTime - startTime) / 1000000; // Milliseconds
-                Document results = new Document();
-                results.put("startTime", epTime);
-                results.put("duration", duration);
-                results.put("test", this.name());
-                results.put("subtest", "USESINGLECOLLECTION");
-                results.put("region", region);
-                results.put("startDate", baseTimeStamp);
+                results.put("baseDate", baseTimeStamp);
                 times[currentTest] = results;
                 currentTest++;
             }
