@@ -9,6 +9,9 @@
         "threads": "$threads",
         "clusterTier": "$clusterTier"
       },
+      "apiCount": {
+        "$first": "$apiCount"
+      },
       "count": {
         "$sum": 1
       },
@@ -28,7 +31,7 @@
         "$min": "$startTime"
       },
       "end": {
-        "$max": "$startTime"
+        "$max": "$endTime"
       }
     }
   },
@@ -39,28 +42,40 @@
       "region": "$_id.region",
       "threads": "$_id.threads",
       "clusterTier": "$_id.clusterTier",
+      "apiCount": 1,
       "max": 1,
       "min": 1,
-      "mean": 1,
+      "mean": {
+        "$round": ["$mean"]
+      },
       "95th_Centile": {
-        "$sum": [
-          "$mean",
+        "$round": [
           {
-            "$multiply": ["$stddev", 2]
+            "$sum": [
+              "$mean",
+              {
+                "$multiply": ["$stddev", 2]
+              }
+            ]
           }
         ]
       },
       "throuput": {
-        "$divide": [
-          "$count",
+        "$round": [
           {
             "$divide": [
+              "$count",
               {
-                "$subtract": ["$end", "$start"]
-              },
-              1000
+                "$divide": [
+                  {
+                    "$subtract": ["$end", "$start"]
+                  },
+                  1000
+                ]
+              }
             ]
-          }
+          },
+          2
         ]
       },
       "_id": 0
