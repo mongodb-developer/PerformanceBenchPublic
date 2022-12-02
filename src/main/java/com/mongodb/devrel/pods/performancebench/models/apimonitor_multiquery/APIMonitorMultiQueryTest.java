@@ -1,9 +1,7 @@
 package com.mongodb.devrel.pods.performancebench.models.apimonitor_multiquery;
 
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
+import com.mongodb.client.*;
+import com.mongodb.client.model.IndexOptions;
 import com.mongodb.devrel.pods.performancebench.SchemaTest;
 import org.bson.Document;
 import org.bson.conversions.Bson;
@@ -24,9 +22,15 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
 
     Logger logger;
     MongoClient mongoClient;
-    MongoCollection<Document> metricsCollection;
+    MongoCollection<Document> apiCollection, metricsCollection;
     JSONObject args;
     JSONObject customArgs;
+
+    //The following will be used to keep a note of the indexes that were on the collections
+    //before we started. We'll drop these whilst testing, add the indexes our queries need
+    //for the duration of the test runs, then drop those and re-instate the original indexes
+    ArrayList<Document> metricsIndexes = new ArrayList<>();
+    ArrayList<Document> apiIndexes = new ArrayList<>();
 
     public APIMonitorMultiQueryTest() {
         logger = LoggerFactory.getLogger(APIMonitorMultiQueryTest.class);
@@ -34,6 +38,28 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
 
     @Override
     public void cleanup(JSONObject args) {
+
+        //Restore original indexes
+        logger.info("Restoring indexes for: " + this.name());
+        for (Document index : apiCollection.listIndexes()) {
+            if(!(index.getString("name").equals("_id_"))){
+                apiCollection.dropIndex(index.getString("name"));
+            }
+        }
+        for (Document index : apiIndexes) {
+            apiCollection.createIndex((Document)index.get("key"));
+        }
+        for (Document index : metricsCollection.listIndexes()) {
+            if(!(index.getString("name").equals("_id_"))){
+                metricsCollection.dropIndex(index.getString("name"));
+            }
+        }
+        for (Document index : metricsIndexes) {
+            metricsCollection.createIndex((Document)index.get("key"));
+        }
+        logger.info("Indexes restored");
+
+
         mongoClient.close();
 
         //                Arrays.sort(alltimes);
@@ -71,7 +97,38 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
         Document pingResult = mongoClient.getDatabase("system").runCommand(new Document("hello", 1));
         logger.debug(pingResult.toJson());
 
+        apiCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("apiCollectionName"));
         metricsCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("metricsCollectionName"));
+
+        //Drop any existing indexes on the collections and create the indexes required by the tests
+        //(dropping existing indexes gives us a better chance of being able to get our indexes in to memory).
+        logger.info("Creating indexes for: " + this.name());
+        for (Document index : apiCollection.listIndexes()) {
+            if(!(index.getString("name").equals("_id_"))){
+                apiCollection.dropIndex(index.getString("name"));
+                apiIndexes.add(index);
+            }
+        }
+
+        for (Document index : metricsCollection.listIndexes()) {
+            if(!(index.getString("name").equals("_id_"))){
+                metricsCollection.dropIndex(index.getString("name"));
+                metricsIndexes.add(index);
+            }
+        }
+        metricsCollection.createIndex(new Document("docType", 1)
+            .append("deployments.region", 1)
+            , new IndexOptions().sparse(false));
+        metricsCollection.createIndex(new Document("apiDetails.appname", 1)
+            .append("docType", 1)
+            .append("creationDate", 1)
+            , new IndexOptions().sparse(false));
+        metricsCollection.createIndex(new Document("deployments.region", 1)
+            .append("creationDate", 1)
+            , new IndexOptions().sparse(false));
+
+        logger.info("Indexes created");
+
 
         /* Quick check things are working */
         logger.debug("Quick self test - just to see we are getting results");
@@ -166,9 +223,9 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                 Instant instant = Instant.parse(baseDate); //Expected format is "2000-01-01T00:00:00.000Z"
                 Date baseTimeStamp = Date.from(instant);
 
-                long startTime = System.nanoTime();
-                //nanotime is NOT necessarily epoch time so don't use it as a timestamp
-                long epTime = System.currentTimeMillis();
+                //Working in milliseconds. Use nanoTime if greater granularity required
+                long startTime = System.currentTimeMillis();
+                //long startTime = System.nanoTime();
 
 
                 //Get the APIs for the selected region
@@ -193,12 +250,9 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                 //are the API id's returned by the prior query.
                 List<Document> aggPipeline = Arrays.asList(
                     new Document("$match",
-                        new Document("$and", Arrays.asList(
-                            new Document("apiDetails.appname", new Document("$in", api_ids)),
-                            new Document("$expr",
-                                 new Document("$gte", Arrays.asList("$creationDate", baseTimeStamp))
-                            )
-                        ))
+                        new Document("apiDetails.appname", new Document("$in", api_ids))
+                            .append("docType", "metrics")
+                            .append("creationDate", new Document("$gte", baseTimeStamp))
                     ),
                     new Document("$group",
                         new Document("_id", "$apiDetails.appname")
@@ -232,25 +286,43 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                         )
                     )
                 );
-                metricsCollection.aggregate(aggPipeline).forEach(doc -> {
-                    for (int i = 0; i < apis.size(); i++) {
-                        Document api = apis.get(i);
-                        if (((String) api.get("_id")).equals((String) doc.get("_id"))) {
-                            api.append("results", doc);
-                            break;
+                int metricsReturned = 0;
+                cursor = metricsCollection.find(filter).iterator();
+                try {
+                    while (cursor.hasNext()) {
+                        //The following is a check to see if metrics were found for each api
+                        Document doc = (Document) cursor.next();
+                        metricsReturned++;
+                        for (int i = 0; i < apis.size(); i++) {
+                            Document api = apis.get(i);
+                            if (((String) api.get("_id")).equals((String) doc.get("_id"))) {
+                                api.append("results", doc);
+                                break;
+                            }
                         }
                     }
-                });
+                } finally {
+                    cursor.close();
+                }
 
-                long endTime = System.nanoTime();
-                long duration = (endTime - startTime) / 1000000; // Milliseconds
+                long endTime = System.currentTimeMillis();
+                long duration = (endTime - startTime);
+                //Uncomment if using nanosecond granularity
+                //long endTime = System.nanoTime();
+                //long duration = (endTime - startTime) / 1000000; // Milliseconds
                 Document results = new Document();
-                results.put("startTime", epTime);
+                results.put("startTime", startTime);
+                results.put("endTime", endTime);
                 results.put("duration", duration);
                 results.put("model", this.name());
                 results.put("measure", "USEINQUERY");
                 results.put("region", region);
                 results.put("baseDate", baseTimeStamp);
+                results.put("apiCount", apis.size());
+                results.put("metricsCount", metricsReturned);
+                results.put("threads", ((Long)this.args.getOrDefault("threads", 2)).intValue());
+                results.put("iterations", ((Long)this.args.getOrDefault("iterations", 2)).intValue());
+                results.put("clusterTier", (String)this.customArgs.getOrDefault("clusterTier", "Not Specified"));
                 times[currentTest] = results;
                 currentTest++;
             }
@@ -316,10 +388,9 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                 Instant instant = Instant.parse(baseDate); //Expected format is "2000-01-01T00:00:00.000Z"
                 Date baseTimeStamp = Date.from(instant);
 
-                long startTime = System.nanoTime();
-                //nanotime is NOT necessarily epoch time so don't use it as a timestamp
-                long epTime = System.currentTimeMillis();
-
+                //Working in milliseconds. Use nanoTime if greater granularity required
+                long startTime = System.currentTimeMillis();
+                //long startTime = System.nanoTime();
 
                 //Get the APIs for the selected region
                 ArrayList<Document> apis = new ArrayList<>();
@@ -336,8 +407,8 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                     cursor.close();
                 }
 
-                //For each API, get the metrics using a pipeline with a $in expression, the matching values of which
-                //are the API id's returned by the prior query.
+                //For each API, get the metrics using a pipeline with an equality clause on region in the
+                //initial match
                 List<Document> aggPipeline = Arrays.asList(
                     new Document("$match",
                         new Document("deployments.region", region)
@@ -375,25 +446,42 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                         )
                     )
                 );
-                metricsCollection.aggregate(aggPipeline).forEach(doc -> {
-                    for (int i = 0; i < apis.size(); i++) {
-                        Document api = apis.get(i);
-                        if (((String) api.get("_id")).equals((String) doc.get("_id"))) {
-                            api.append("results", doc);
-                            break;
+                int metricsReturned = 0;
+                cursor = metricsCollection.find(filter).iterator();
+                try {
+                    while (cursor.hasNext()) {
+                        //The following is a check to see if metrics were found for each api
+                        Document doc = (Document) cursor.next();
+                        metricsReturned++;
+                        for (int i = 0; i < apis.size(); i++) {
+                            Document api = apis.get(i);
+                            if (((String) api.get("_id")).equals((String) doc.get("_id"))) {
+                                api.append("results", doc);
+                                break;
+                            }
                         }
                     }
-                });
-
-                long endTime = System.nanoTime();
-                long duration = (endTime - startTime) / 1000000; // Milliseconds
+                } finally {
+                    cursor.close();
+                }
+                long endTime = System.currentTimeMillis();
+                long duration = (endTime - startTime);
+                //Uncomment if using nanosecond granularity
+                //long endTime = System.nanoTime();
+                //long duration = (endTime - startTime) / 1000000; // Milliseconds
                 Document results = new Document();
-                results.put("startTime", epTime);
+                results.put("startTime", startTime);
+                results.put("endTime", endTime);
                 results.put("duration", duration);
                 results.put("model", this.name());
                 results.put("measure", "USEEQUALITYQUERY");
                 results.put("region", region);
                 results.put("baseDate", baseTimeStamp);
+                results.put("apiCount", apis.size());
+                results.put("metricsCount", metricsReturned);
+                results.put("threads", ((Long)this.args.getOrDefault("threads", 2)).intValue());
+                results.put("iterations", ((Long)this.args.getOrDefault("iterations", 2)).intValue());
+                results.put("clusterTier", (String)this.customArgs.getOrDefault("clusterTier", "Not Specified"));
                 times[currentTest] = results;
                 currentTest++;
             }

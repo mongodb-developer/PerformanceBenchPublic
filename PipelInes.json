@@ -1,0 +1,81 @@
+{
+  "SummaryStats" : [
+  {
+    "$group": {
+      "_id": {
+        "model": "$model",
+        "measure": "$measure",
+        "region": "$region",
+        "threads": "$threads",
+        "clusterTier": "$clusterTier"
+      },
+      "count": {
+        "$sum": 1
+      },
+      "max": {
+        "$max": "$duration"
+      },
+      "min": {
+        "$min": "$duration"
+      },
+      "mean": {
+        "$avg": "$duration"
+      },
+      "stddev": {
+        "$stdDevPop": "$duration"
+      },
+      "start": {
+        "$min": "$startTime"
+      },
+      "end": {
+        "$max": "$startTime"
+      }
+    }
+  },
+  {
+    "$project": {
+      "model": "$_id.model",
+      "measure": "$_id.measure",
+      "region": "$_id.region",
+      "threads": "$_id.threads",
+      "clusterTier": "$_id.clusterTier",
+      "max": 1,
+      "min": 1,
+      "mean": 1,
+      "95th_Centile": {
+        "$sum": [
+          "$mean",
+          {
+            "$multiply": ["$stddev", 2]
+          }
+        ]
+      },
+      "throuput": {
+        "$divide": [
+          "$count",
+          {
+            "$divide": [
+              {
+                "$subtract": ["$end", "$start"]
+              },
+              1000
+            ]
+          }
+        ]
+      },
+      "_id": 0
+    }
+  },
+  {
+    "$sort": {
+      "clusterTier": 1,
+      "threads": 1,
+      "region": 1,
+      "model": 1,
+      "measure": 1,
+      "mean": 1
+    }
+  }
+]
+
+}

@@ -1,9 +1,7 @@
 package com.mongodb.devrel.pods.performancebench.models.apimonitor_lookup;
 
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
+import com.mongodb.client.*;
+import com.mongodb.client.model.IndexOptions;
 import com.mongodb.devrel.pods.performancebench.SchemaTest;
 import org.bson.Document;
 import org.bson.conversions.Bson;
@@ -28,12 +26,40 @@ public class APIMonitorLookupTest implements SchemaTest {
     JSONObject args;
     JSONObject customArgs;
 
+    //The following will be used to keep a note of the indexes that were on the collections
+    //before we started. We'll drop these whilst testing, add the indexes our queries need
+    //for the duration of the test runs, then drop those and re-instate the original indexes
+    ArrayList<Document> metricsIndexes = new ArrayList<>();
+    ArrayList<Document> apiIndexes = new ArrayList<>();
+
     public APIMonitorLookupTest() {
         logger = LoggerFactory.getLogger(APIMonitorLookupTest.class);
     }
 
     @Override
     public void cleanup(JSONObject args) {
+
+        //Restore original indexes
+        logger.info("Restoring indexes for: " + this.name());
+        for (Document index : apiCollection.listIndexes()) {
+            if(!(index.getString("name").equals("_id_"))){
+                apiCollection.dropIndex(index.getString("name"));
+            }
+        }
+        for (Document index : apiIndexes) {
+            apiCollection.createIndex((Document)index.get("key"));
+        }
+
+        for (Document index : metricsCollection.listIndexes()) {
+            if(!(index.getString("name").equals("_id_"))){
+                metricsCollection.dropIndex(index.getString("name"));
+            }
+        }
+        for (Document index : metricsIndexes) {
+            metricsCollection.createIndex((Document)index.get("key"));
+        }
+        logger.info("Indexes restored");
+
         mongoClient.close();
 
         //                Arrays.sort(alltimes);
@@ -57,8 +83,10 @@ public class APIMonitorLookupTest implements SchemaTest {
     }
 
     @Override
-    public void initialize(JSONObject newArgs){
+    public void initialize(JSONObject args){
 
+        //API: deployments.region_1
+        //Metrics: apiDetails.appname_1_docType_1_creationDate_1
 
         this.args = args;
 
@@ -74,6 +102,29 @@ public class APIMonitorLookupTest implements SchemaTest {
 
         apiCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("apiCollectionName"));
         metricsCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("metricsCollectionName"));
+
+        //Drop any existing indexes on the collections and create the indexes required by the tests
+        //(dropping existing indexes gives us a better chance of being able to get our indexes in to memory).
+        logger.info("Creating indexes for: " + this.name());
+        for (Document index : apiCollection.listIndexes()) {
+            if(!(index.getString("name").equals("_id_"))){
+                apiCollection.dropIndex(index.getString("name"));
+                apiIndexes.add(index);
+            }
+        }
+        apiCollection.createIndex(new Document("deployments.region", 1), new IndexOptions().sparse(false));
+
+        for (Document index : metricsCollection.listIndexes()) {
+            if(!(index.getString("name").equals("_id_"))){
+                metricsCollection.dropIndex(index.getString("name"));
+                metricsIndexes.add(index);
+            }
+        }
+        metricsCollection.createIndex(new Document("apiDetails.appname", 1)
+                .append("docType", 1)
+                .append("creationDate", 1)
+                , new IndexOptions().sparse(false));
+        logger.info("Indexes created");
 
         /* Quick check things are working */
         logger.debug("Quick self test - just to see we are getting results");
@@ -180,8 +231,8 @@ public class APIMonitorLookupTest implements SchemaTest {
                                 new Document("$expr",
                                     new Document("$and", Arrays.asList(
                                         new Document("$eq", Arrays.asList("$apiDetails.appname", "$$appName")),
-                                        new Document("$and", Arrays.asList(new Document("$gte", Arrays.asList("$creationDate", baseTimeStamp)),
-                                        new Document("$lte", Arrays.asList("$creationDate", "$$NOW"))))
+                                        new Document("$eq", Arrays.asList("$docType", "metrics")),
+                                        new Document("$gte", Arrays.asList("$creationDate", baseTimeStamp))
                                     ))
                                 )
                             ),
@@ -219,29 +270,48 @@ public class APIMonitorLookupTest implements SchemaTest {
                             )
                         ))
                         .append("as", "results")
-                    ),
-                    new Document("$sort",
-                        new Document("results.aggregatedResponse.totalTransactionVolume", -1L).append("apiDetails.appName", 1L)
-                    ),
-                    new Document("$limit", 1000L)
+                    )
                 );
 
-                long startTime = System.nanoTime();
-                //nanotime is NOT necessarily epoch time so don't use it as a timestamp
-                long epTime = System.currentTimeMillis();
+                //Working in milliseconds. Use nanoTime if greater granularity required
+                long startTime = System.currentTimeMillis();
+                //long startTime = System.nanoTime();
+
+                int metricsReturned = 0;
+                int apisReturned = 0;
+                MongoCursor<Document> cursor = apiCollection.aggregate(aggPipeline).iterator();
                 try {
-                    apiCollection.aggregate(aggPipeline).wait();//.forEach(doc -> System.out.println(doc.toJson()));
-                } catch (Exception e) {
+                    while (cursor.hasNext()) {
+                        //The following is a check to see if metrics were found for each api
+                        apisReturned++;
+                        Document doc = (Document) cursor.next();
+                        if(!(doc.getList("results", Document.class).isEmpty())){
+                            metricsReturned++;
+                        }
+                    }
+                } finally {
+                    cursor.close();
                 }
-                long endTime = System.nanoTime();
-                long duration = (endTime - startTime) / 1000000; // Milliseconds
+
+                long endTime = System.currentTimeMillis();
+                long duration = (endTime - startTime);
+                //Uncomment if using nanosecond granularity
+                //long endTime = System.nanoTime();
+                //long duration = (endTime - startTime) / 1000000; // Milliseconds
                 Document results = new Document();
-                results.put("startTime", epTime);
+                results.put("startTime", startTime);
+                results.put("endTime", endTime);
                 results.put("duration", duration);
                 results.put("model", this.name());
                 results.put("measure", "USEPIPELINE");
                 results.put("region", region);
                 results.put("baseDate", baseTimeStamp);
+                results.put("apiCount", apisReturned);
+                results.put("metricsCount", metricsReturned);
+                results.put("threads", ((Long)this.args.getOrDefault("threads", 2)).intValue());
+                results.put("iterations", ((Long)this.args.getOrDefault("iterations", 2)).intValue());
+                results.put("clusterTier", (String)this.customArgs.getOrDefault("clusterTier", "Not Specified"));
+
                 times[currentTest] = results;
                 currentTest++;
             }

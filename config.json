@@ -1,11 +1,11 @@
 {
   "models": [
     {
-      "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_lookup",
-      "className": "APIMonitorLookupTest",
-      "measures": ["USEPIPELINE"],
-      "threads": 3,
-      "iterations": 100,
+      "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_multiquery",
+      "className": "APIMonitorMultiQueryTest",
+      "measures": ["USEEQUALITYQUERY", "USEINQUERY"],
+      "threads": 1,
+      "iterations": 1,
       "resultsuri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
       "resultsCollectionName": "apimonitor_results",
       "resultsDBName": "performancebenchresults",
@@ -14,25 +14,28 @@
         "apiCollectionName": "APIDetails",
         "metricsCollectionName": "APISingleCollection",
         "dbname": "HSBC",
-        "regions": ["UK", "NY", "TK", "HK", "IN"],
-        "baseDate": "2022-11-01T00:00:00.000Z"
+        "regions": ["UK", "TK", "HK", "IN"],
+        "baseDate": "2022-11-01T00:00:00.000Z",
+        "clusterTier": "M10"
       }
     },
     {
       "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_lookup",
-      "className": "APIMonitorMultiQueryTest",
-      "measures": ["USEINQUERY", "USEEQUALITYQUERY"],
-      "threads": 3,
-      "iterations": 100,
+      "className": "APIMonitorLookupTest",
+      "measures": ["USEPIPELINE"],
+      "threads": 1,
+      "iterations": 1,
       "resultsuri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
       "resultsCollectionName": "apimonitor_results",
       "resultsDBName": "performancebenchresults",
       "custom": {
         "uri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
+        "apiCollectionName": "APIDetails",
         "metricsCollectionName": "APISingleCollection",
         "dbname": "HSBC",
-        "regions": ["UK", "NY", "TK", "HK", "IN"],
-        "baseDate": "2022-11-01T00:00:00.000Z"
+        "regions": ["UK", "TK", "HK", "IN" ],
+        "baseDate": "2022-11-01T00:00:00.000Z",
+        "clusterTier": "M10"
       }
     }
   ]
