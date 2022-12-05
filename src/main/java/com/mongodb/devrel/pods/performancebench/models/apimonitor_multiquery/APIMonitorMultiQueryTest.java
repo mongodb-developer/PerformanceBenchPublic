@@ -62,24 +62,6 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
 
         mongoClient.close();
 
-        //                Arrays.sort(alltimes);
-//                int timelen = alltimes.length;
-//                long total = 0;
-//                for (int t = 0; t < timelen; t++) {
-//                    total += alltimes[t];
-//                }
-//
-//                double secs = (double) (endTime - startTime) / 1000000000.0;
-//
-//                logger.info(String.format(
-//                        "%s:%s max(ms): %.2f, min(ms): %.2f, mean(ms): %.2f, 95th centile(ms): %.2f, throughput(qps): %.1f",
-//                        test.name(), st,
-//                        alltimes[timelen - 1] / 1000.0,
-//                        alltimes[0] / 1000.0,
-//                        (total / 1000.0) / timelen,
-//                        alltimes[(int) (timelen * .95)] / 1000.0,
-//                        (double) timelen / secs));
-
     }
 
     @Override

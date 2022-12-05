@@ -57,7 +57,7 @@ public class TestRunner implements Runnable {
     Document[] times;
 
     //The specific measure to be executed.
-    private String subtest;
+    private String measure;
 
 
     TestRunner(SchemaTest t, JSONObject o, String st) {
@@ -65,7 +65,7 @@ public class TestRunner implements Runnable {
         logger = LoggerFactory.getLogger(TestRunner.class);
         options = o;
         test = t;
-        this.subtest = st;
+        this.measure = st;
         OPS_TO_TEST = ((Long)options.get("iterations")).intValue();
         times = new Document[OPS_TO_TEST];
 
@@ -151,7 +151,7 @@ public class TestRunner implements Runnable {
 
     @Override
     public void run() {
-        times = test.executeMeasure(OPS_TO_TEST, subtest, options);
+        times = test.executeMeasure(OPS_TO_TEST, measure, options);
     }
 
 }
