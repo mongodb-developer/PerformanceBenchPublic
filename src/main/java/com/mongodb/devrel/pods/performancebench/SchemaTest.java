@@ -32,7 +32,7 @@ public abstract interface SchemaTest {
      *
      * @param opsToTest - the number of iterations of the measure to be performed
      * @param measure - the name of the measure to be executed.
-     * @param args - a JSON Object listing parameters specific to the measure(s) being executed.
+     * @param args - a JSON Document listing parameters for the model being executed.
      * @return an array of BSON documents containing the results of each measure iteration.
      *          These will be saved to a collection specified in the application config JSON file.
      *
