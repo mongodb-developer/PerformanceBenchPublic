@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
- *  Subscriber helper implementations for the Quick Tour.
+ *  Subscriber helper implementations for PerformanceBench RegionQuery model.
  */
 public final class SubscriberHelpers {
 
