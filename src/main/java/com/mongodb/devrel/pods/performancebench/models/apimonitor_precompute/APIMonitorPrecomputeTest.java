@@ -6,7 +6,6 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.devrel.pods.performancebench.SchemaTest;
-import com.mongodb.devrel.pods.performancebench.models.apimonitor_regionquery.SubscriberHelpers;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.json.simple.JSONArray;
