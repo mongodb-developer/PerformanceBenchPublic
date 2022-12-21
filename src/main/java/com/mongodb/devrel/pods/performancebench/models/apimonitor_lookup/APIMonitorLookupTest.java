@@ -1,5 +1,22 @@
 package com.mongodb.devrel.pods.performancebench.models.apimonitor_lookup;
 
+/*
+ * Copyright 2008-present MongoDB, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 import com.mongodb.client.*;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.devrel.pods.performancebench.SchemaTest;
@@ -10,11 +27,13 @@ import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static com.mongodb.client.model.Filters.*;
 
@@ -84,6 +103,9 @@ public class APIMonitorLookupTest implements SchemaTest {
 
         apiCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("apiCollectionName"));
         metricsCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("metricsCollectionName"));
+
+        //Are we rebuilding the data?
+        if((Boolean)customArgs.get("rebuildData")){ rebuildData(); }
 
         //Drop any existing indexes on the collections and create the indexes required by the tests
         //(dropping existing indexes gives us a better chance of being able to get our indexes in to memory).
@@ -213,7 +235,6 @@ public class APIMonitorLookupTest implements SchemaTest {
                                 new Document("$expr",
                                     new Document("$and", Arrays.asList(
                                         new Document("$eq", Arrays.asList("$apiDetails.appname", "$$appName")),
-                                        new Document("$eq", Arrays.asList("$docType", "metrics")),
                                         new Document("$gte", Arrays.asList("$creationDate", baseTimeStamp))
                                     ))
                                 )
@@ -260,6 +281,7 @@ public class APIMonitorLookupTest implements SchemaTest {
                 //long startTime = System.nanoTime();
 
                 int metricsReturned = 0;
+                long transactionVolume = 0L;
                 int apisReturned = 0;
                 MongoCursor<Document> cursor = apiCollection.aggregate(aggPipeline).iterator();
                 try {
@@ -269,6 +291,10 @@ public class APIMonitorLookupTest implements SchemaTest {
                         Document doc = (Document) cursor.next();
                         if(!(doc.getList("results", Document.class).isEmpty())){
                             metricsReturned++;
+                            ArrayList<Document> results = (ArrayList<Document>)doc.get("results");
+                            Document resultsDoc = (Document)results.get(0);
+                            Document aggResults = (Document)resultsDoc.get("aggregatedResponse");
+                            transactionVolume += (Integer)aggResults.get("totalTransactionVolume");
                         }
                     }
                 } finally {
@@ -290,6 +316,7 @@ public class APIMonitorLookupTest implements SchemaTest {
                 results.put("baseDate", baseTimeStamp);
                 results.put("apiCount", apisReturned);
                 results.put("metricsCount", metricsReturned);
+                results.put("transactionsCount", transactionVolume);
                 results.put("threads", ((Long)this.args.getOrDefault("threads", 2)).intValue());
                 results.put("iterations", ((Long)this.args.getOrDefault("iterations", 2)).intValue());
                 results.put("clusterTier", (String)this.customArgs.getOrDefault("clusterTier", "Not Specified"));
@@ -308,6 +335,97 @@ public class APIMonitorLookupTest implements SchemaTest {
 
         Bson query = eq("_id", apiIDString);
         return apiCollection.find(query).into(rval);
+    }
+
+    private void rebuildData() {
+
+        Integer apiCount = ((Long)customArgs.get("apiCount")).intValue();
+
+        logger.info("Rebuilding test data for " + apiCount.toString() + " APIs");
+
+        //Drop the existing collections if they exist:
+        apiCollection.drop();
+        metricsCollection.drop();
+        //Recreate the handles to the collections - MongoDB will automatically recreate them
+        //when we add documents
+        apiCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("apiCollectionName"));
+        metricsCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("metricsCollectionName"));
+
+        //Arraylists for API documents and their corresponding metrics documents
+        ArrayList<Document> apis = new ArrayList<>();
+        ArrayList<Document> metrics = new ArrayList<>();
+
+        //Get the list of regions
+        JSONArray regions = (JSONArray)customArgs.get("regions");
+
+        //Current date
+        Instant currentDate = Instant.now();
+        //Generate a random date within the last 90 days (this will be the date we use as the "API added" date
+        Instant ninetyDaysAgo = currentDate.minus(Duration.ofDays(90));
+        Instant apiDate = this.between(ninetyDaysAgo, currentDate);
+
+        for (Integer i = 1; i <= apiCount; i++) {
+            String apiname = "api#" + i.toString();
+
+            //Randomly select a region for this API
+            String region = (String)regions.get(ThreadLocalRandom.current().nextInt(0, regions.size()));
+
+            //Build the document
+            Document apiDoc = new Document("_id", apiname)
+                    .append("apiDetails", new Document("appname", apiname)
+                            .append("platform", "Linux")
+                            .append("language", new Document("name", "Java")
+                                    .append("version", "11.8.202")
+                            )
+                            .append("techStack", new Document("name", "Springboot")
+                                    .append("version", "UNCATEGORIZED")
+                            )
+                            .append("environment", "PROD")
+                    )
+                    .append("deployments", new Document("region", region)
+                            .append("createdAt", Date.from(apiDate))
+                    );
+            apis.add(apiDoc);
+
+            //Generate a metric document for each 15 minute period from the apiDate until now.
+            Integer metricNum = 1;
+            Instant metricDate = apiDate;
+            while(metricDate.isBefore(currentDate)){
+                String metricName = apiname + "#S#" +metricNum.toString();
+                metricNum++;
+                //Create random transaction volumes / error rates / success rates
+                Integer tv = ThreadLocalRandom.current().nextInt(0, 100000) + 1;
+                Integer sc = ThreadLocalRandom.current().nextInt(0, tv) + 1;
+                Integer ec = tv - sc;
+                Document metricDoc = new Document("_id", metricName)
+                        .append("apiDetails", new Document("appname", apiname))
+                        .append("creationDate", Date.from(metricDate))
+                        .append("transactionVolume", tv)
+                        .append("errorCount", ec)
+                        .append("successCount", sc)
+                        .append("deployments", new Document("region", region));
+                metrics.add(metricDoc);
+                metricDate = metricDate.plus(Duration.ofMinutes(15));
+            }
+            if((apis.size() % 50 == 0)||(i == apiCount)){
+                //Add API info in batches of 50 to keep arraylist size reasonable
+                apiCollection.insertMany(apis);
+                metricsCollection.insertMany(metrics);
+                apis = new ArrayList<>();
+                metrics = new ArrayList<>();
+            }
+        }
+        logger.info("Test data rebuilt");
+    }
+
+    private Instant between(Instant startInclusive, Instant endExclusive) {
+
+        long startSeconds = startInclusive.getEpochSecond();
+        long endSeconds = endExclusive.getEpochSecond();
+        long random = ThreadLocalRandom
+                .current()
+                .nextLong(startSeconds, endSeconds);
+        return Instant.ofEpochSecond(random);
     }
 }
 

@@ -3,17 +3,17 @@
 ### A framework for comparing the relative performance of different database schemas
 
 PerformanceBench is a simple Java framework designed to allow developers to assess the relative performance 
-of different database design patterns. Although designed primarily with MonogDB in mind, the framework could
+of different database design patterns. Although designed primarily with MongoDB in mind, the framework could
 be used with any database.
 
 PerformanceBench defines its functionality in terms of **_"models"_** (the design patterns being assessed), and 
-_**"measures"**_ (the operations to be tested against teach model). As an example, a developer may wish to assess
+_**"measures"**_ (the operations to be measured against each model). As an example, a developer may wish to assess
 the relative performance of a design based on having data spread across multiple collections and accessed
 using $lookup aggregations, versus one based on embedding related documents within each other. In this
 scenario, the models might be referred to as "multi-table" and "hierarchical", with the "measures" for each
 being CRUD operations - "Create", "Read", "Update" and "Delete".
 
-PerformanceBench is configured via a JSON format configurations file which contains an array of documents -
+PerformanceBench is configured via a JSON format configuration file which contains an array of documents -
 one for each model being tested. Each model document in the configuration file is expected to contain a set
 of mandatory fields that are common for all models being tested via performance bench. Additionally, each
 document can contain a set of custom fields specific to the model and measures being tested.
@@ -38,7 +38,7 @@ document for the model should be passed as argument 'args'.
 
 `public String name();`
 
-The name method should return a string name for the implementing class. Class implementors can set the 
+The name method should return a string name for the implementing class. Class implementers can set the 
 returned value to anything that makes sense for their use-case.
 
 `public void warmup(JSONObject args);`

@@ -1,22 +1,67 @@
 {
   "models": [
     {
-      "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_multiquery",
-      "className": "APIMonitorMultiQueryTest",
-      "measures": ["USEEQUALITYQUERY", "USEINQUERY"],
+      "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_precompute",
+      "className": "APIMonitorPrecomputeTest",
+      "measures": ["PRECOMPUTE"],
       "threads": 1,
       "iterations": 1,
       "resultsuri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
       "resultsCollectionName": "apimonitor_results",
-      "resultsDBName": "performancebenchresults",
+      "resultsDBName": "performancebenchresultstemp",
       "custom": {
         "uri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
         "apiCollectionName": "APIDetails",
-        "metricsCollectionName": "APISingleCollection",
-        "dbname": "HSBC",
-        "regions": ["UK", "TK", "HK", "IN"],
+        "metricsCollectionName": "APIMetrics",
+        "precomputeCollectionName": "APIPreCalc",
+        "dbname": "APIMonitor",
+        "regions": ["UK", "TK", "HK", "IN" ],
         "baseDate": "2022-11-01T00:00:00.000Z",
-        "clusterTier": "M10"
+        "clusterTier": "M40",
+        "rebuildData": false,
+        "apiCount": 100
+      }
+    },
+    {
+      "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_regionquery",
+      "className": "APIMonitorRegionQueryTest",
+      "measures": ["QUERYSYNC","QUERYASYNC"],
+      "threads": 1,
+      "iterations": 1,
+      "resultsuri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
+      "resultsCollectionName": "apimonitor_results",
+      "resultsDBName": "performancebenchresultstemp",
+      "custom": {
+        "uri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
+        "apiCollectionName": "APIDetails",
+        "metricsCollectionName": "APIMetrics",
+        "dbname": "APIMonitor",
+        "regions": ["UK", "TK", "HK", "IN" ],
+        "baseDate": "2022-11-01T00:00:00.000Z",
+        "clusterTier": "M10",
+        "rebuildData": false,
+        "apiCount": 100
+      }
+    },
+    {
+      "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_multiquery",
+      "className": "APIMonitorMultiQueryTest",
+      "measures": ["USEINQUERY"],
+      "threads": 1,
+      "iterations": 1,
+      "resultsuri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
+      "resultsCollectionName": "apimonitor_results",
+      "resultsDBName": "performancebenchresultstemp",
+      "custom": {
+        "uri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
+        "apiCollectionName": "APIDetails",
+        "metricsCollectionName": "APIMetrics",
+        "dbname": "APIMonitor",
+        "regions": ["UK", "TK", "HK", "IN" ],
+        "baseDate": "2022-11-01T00:00:00.000Z",
+        "clusterTier": "M10",
+        "rebuildData": false,
+        "apiCount": 1000
       }
     },
     {
@@ -27,15 +72,17 @@
       "iterations": 1,
       "resultsuri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
       "resultsCollectionName": "apimonitor_results",
-      "resultsDBName": "performancebenchresults",
+      "resultsDBName": "performancebenchresultstemp",
       "custom": {
         "uri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
         "apiCollectionName": "APIDetails",
-        "metricsCollectionName": "APISingleCollection",
-        "dbname": "HSBC",
+        "metricsCollectionName": "APIMetrics",
+        "dbname": "APIMonitor",
         "regions": ["UK", "TK", "HK", "IN" ],
         "baseDate": "2022-11-01T00:00:00.000Z",
-        "clusterTier": "M10"
+        "clusterTier": "M10",
+        "rebuildData": false,
+        "apiCount": 1000
       }
     }
   ]

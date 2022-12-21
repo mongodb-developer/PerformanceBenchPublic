@@ -1,4 +1,4 @@
-package com.mongodb.devrel.pods.performancebench.models.apimonitor_multiquery;
+package com.mongodb.devrel.pods.performancebench.models.apimonitor_regionquery;
 
 /*
  * Copyright 2008-present MongoDB, Inc.
@@ -17,31 +17,41 @@ package com.mongodb.devrel.pods.performancebench.models.apimonitor_multiquery;
  *
  */
 
-import com.mongodb.client.*;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.IndexOptions;
+
 import com.mongodb.devrel.pods.performancebench.SchemaTest;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.reactivestreams.Subscriber;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
+import java.time.ZoneId;
+import java.time.temporal.TemporalField;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.mongodb.client.model.Filters.*;
+import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.eq;
 
-public class APIMonitorMultiQueryTest implements SchemaTest {
+public class APIMonitorRegionQueryTest implements SchemaTest {
 
     Logger logger;
     MongoClient mongoClient;
     MongoCollection<Document> apiCollection, metricsCollection;
+
+    //Reactive Streams Driver versions:
+    com.mongodb.reactivestreams.client.MongoClient reactiveClient;
+    com.mongodb.reactivestreams.client.MongoCollection<Document> reactiveAPICollection, reactiveMetricsCollection;
+
     JSONObject args;
     JSONObject customArgs;
 
@@ -51,8 +61,8 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
     ArrayList<Document> metricsIndexes = new ArrayList<>();
     ArrayList<Document> apiIndexes = new ArrayList<>();
 
-    public APIMonitorMultiQueryTest() {
-        logger = LoggerFactory.getLogger(APIMonitorMultiQueryTest.class);
+    public APIMonitorRegionQueryTest() {
+        logger = LoggerFactory.getLogger(com.mongodb.devrel.pods.performancebench.models.apimonitor_regionquery.APIMonitorRegionQueryTest.class);
     }
 
     @Override
@@ -80,6 +90,7 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
 
 
         mongoClient.close();
+        reactiveClient.close();
 
     }
 
@@ -104,6 +115,19 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
         //Are we rebuilding the data?
         if((Boolean)customArgs.get("rebuildData")){ rebuildData(); }
 
+        //Connect with the Reactive Streams Driver
+        reactiveClient = com.mongodb.reactivestreams.client.MongoClients.create(customArgs.get("uri").toString());
+        SubscriberHelpers.OperationSubscriber<Document> subscriber = new SubscriberHelpers.OperationSubscriber<Document>(){
+            @Override
+            public void onNext(final Document result) {
+                logger.debug(result.toJson());
+            }
+        };
+        reactiveClient.getDatabase("system").runCommand(new Document("hello", 1)).subscribe(subscriber);
+        subscriber.await();
+        reactiveAPICollection = reactiveClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("apiCollectionName"));
+        reactiveMetricsCollection = reactiveClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("metricsCollectionName"));
+
         //Drop any existing indexes on the collections and create the indexes required by the tests
         //(dropping existing indexes gives us a better chance of being able to get our indexes in to memory).
         logger.info("Creating indexes for: " + this.name());
@@ -120,14 +144,12 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                 metricsIndexes.add(index);
             }
         }
-        apiCollection.createIndex(new Document("docType", 1)
-            .append("deployments.region", 1)
-            , new IndexOptions().sparse(false));
-        metricsCollection.createIndex(new Document("apiDetails.appname", 1)
-            .append("creationDate", 1)
-            , new IndexOptions().sparse(false));
+        apiCollection.createIndex(new Document("deployments.region", 1), new IndexOptions().sparse(false));
+        metricsCollection.createIndex(new Document("deployments.region", 1)
+                .append("creationDate", 1), new IndexOptions().sparse(false));
 
         logger.info("Indexes created");
+
 
         /* Quick check things are working */
         logger.debug("Quick self test - just to see we are getting results");
@@ -143,7 +165,7 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
 
     @Override
     public String name() {
-        return "APIMonitorMultiQueryTest";
+        return "APIMonitorRegionQueryTest";
     }
 
     @Override
@@ -159,7 +181,8 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
 
         //Branch based on the measure to be executed
         return switch (measure) {
-            case "USEINQUERY" -> getINQueryResults(opsToTest);
+            case "QUERYSYNC" -> getRegionQueryResults(opsToTest);
+            case "QUERYASYNC" -> getRegionQueryAsyncResults(opsToTest);
             default -> null;
         };
     }
@@ -179,9 +202,9 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
      * 2. Run an aggregation pipeline to determine the total number of calls to each api, as well
      *      as the success and failure rates of those calls, for the time period from the baseDate
      *      specified in the model's configuration file to the current date
-     * 3. The initial match stage in the pipeline described is step 2 should use an $in expression to
-     *      identify metrics documents for each api. The list of API ID's to be included in the $in
-     *      expression should be derived form the output of the query run in step 1.
+     * 3. The initial match stage in the pipeline described is step 2 should filter on the metrics
+     *      documents' deployment.region field (rather than do a $in expression on apiDetails.appname),
+     *      to identify the relevant metrics documents.
      * 4. On completion of the aggregation pipeline, the returned metrics should be appended to the
      *      corresponding API documents retrieved by the query in step 1 (so the eventual output
      *      is comparable to the output of the $lookup pipeline).
@@ -195,7 +218,7 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
      *
      *      The total number of results documents returned should equal opsToTest * number of regions
      */
-    private Document[] getINQueryResults(int opsToTest) {
+    private Document[] getRegionQueryResults(int opsToTest) {
 
         //We are going to run the aggregation once for each geographic region. Get the
         //list of regions from the model's configuration.
@@ -224,50 +247,49 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
 
                 //Get the APIs for the selected region
                 ArrayList<Document> apis = new ArrayList<>();
-                ArrayList<String> api_ids = new ArrayList<>();
 
-                //Use the docType field to filter out metrics documents
+                //Use the docType field to filter out metrics documents.
                 Bson filter = eq("deployments.region", region);
 
-                //For each API, get the metrics using a pipeline with a $in expression, the matching values of which
-                //are the API id's returned by the prior query.
+                //For each API, get the metrics using a pipeline with an equality clause on region in the
+                //initial match
                 ArrayList<Document> results = new ArrayList<>();
                 List<Document> aggPipeline = Arrays.asList(
-                    new Document("$match",
-                        new Document("apiDetails.appname", new Document("$in", api_ids))
-                            .append("creationDate", new Document("$gte", baseTimeStamp))
-                    ),
-                    new Document("$group",
-                        new Document("_id", "$apiDetails.appname")
-                            .append("totalVolume", new Document("$sum", "$transactionVolume"))
-                            .append("totalError", new Document("$sum", "$errorCount"))
-                            .append("totalSuccess", new Document("$sum", "$successCount"))
-                    ),
-                    new Document("$project",
-                        new Document("aggregatedResponse",
-                            new Document("totalTransactionVolume", "$totalVolume")
-                            .append("errorRate",
-                                new Document("$cond", Arrays.asList(
-                                    new Document("$eq", Arrays.asList("$totalVolume", 0L)),
-                                    0L,
-                                    new Document("$multiply", Arrays.asList(
-                                        new Document("$divide", Arrays.asList("$totalError", "$totalVolume")),
-                                        100L
-                                    ))
-                                ))
-                            )
-                            .append("successRate",
-                                new Document("$cond", Arrays.asList(
-                                    new Document("$eq", Arrays.asList("$totalVolume", 0L)),
-                                    0L,
-                                    new Document("$multiply", Arrays.asList(
-                                        new Document("$divide", Arrays.asList("$totalSuccess", "$totalVolume")),
-                                        100L
-                                    ))
-                                ))
-                            )
+                        new Document("$match",
+                                new Document("deployments.region", region)
+                                        .append("creationDate", new Document("$gte", baseTimeStamp))
+                        ),
+                        new Document("$group",
+                                new Document("_id", "$apiDetails.appname")
+                                        .append("totalVolume", new Document("$sum", "$transactionVolume"))
+                                        .append("totalError", new Document("$sum", "$errorCount"))
+                                        .append("totalSuccess", new Document("$sum", "$successCount"))
+                        ),
+                        new Document("$project",
+                                new Document("aggregatedResponse",
+                                        new Document("totalTransactionVolume", "$totalVolume")
+                                                .append("errorRate",
+                                                        new Document("$cond", Arrays.asList(
+                                                                new Document("$eq", Arrays.asList("$totalVolume", 0L)),
+                                                                0L,
+                                                                new Document("$multiply", Arrays.asList(
+                                                                        new Document("$divide", Arrays.asList("$totalError", "$totalVolume")),
+                                                                        100L
+                                                                ))
+                                                        ))
+                                                )
+                                                .append("successRate",
+                                                        new Document("$cond", Arrays.asList(
+                                                                new Document("$eq", Arrays.asList("$totalVolume", 0L)),
+                                                                0L,
+                                                                new Document("$multiply", Arrays.asList(
+                                                                        new Document("$divide", Arrays.asList("$totalSuccess", "$totalVolume")),
+                                                                        100L
+                                                                ))
+                                                        ))
+                                                )
+                                )
                         )
-                    )
                 );
 
                 //Working in milliseconds. Use nanoTime if greater granularity required
@@ -279,12 +301,10 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                     while (cursor.hasNext()) {
                         Document api = (Document) cursor.next();
                         apis.add(api);
-                        api_ids.add(api.getString("_id"));
                     }
                 } finally {
                     cursor.close();
                 }
-
                 cursor = metricsCollection.aggregate(aggPipeline).iterator();
                 try {
                     while (cursor.hasNext()) {
@@ -294,10 +314,10 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                 } finally {
                     cursor.close();
                 }
-
                 int metricsReturned = 0;
                 long transactionVolume = 0L;
                 //The following is a check to see if metrics were found for each api
+
                 for (int i = 0; i < apis.size(); i++) {
                     Document api = apis.get(i);
                     for (int y = 0; y < results.size(); y++) {
@@ -316,13 +336,12 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                 //Uncomment if using nanosecond granularity
                 //long endTime = System.nanoTime();
                 //long duration = (endTime - startTime) / 1000000; // Milliseconds
-
                 Document metrics = new Document();
                 metrics.put("startTime", startTime);
                 metrics.put("endTime", endTime);
                 metrics.put("duration", duration);
                 metrics.put("model", this.name());
-                metrics.put("measure", "USEINQUERY");
+                metrics.put("measure", "QUERYSYNC");
                 metrics.put("region", region);
                 metrics.put("baseDate", baseTimeStamp);
                 metrics.put("apiCount", apis.size());
@@ -333,7 +352,174 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                 metrics.put("clusterTier", (String)this.customArgs.getOrDefault("clusterTier", "Not Specified"));
                 times[currentTest] = metrics;
                 currentTest++;
+            }
+        }
+        return times;
+    }
 
+    /**
+     *
+     * @param opsToTest - the number of iterations of the test to carry out
+     * @return an array of BSON documents containing the execution time plus other
+     *          metadata, for each test iteration. PerformanceBench will write these
+     *          documents to a specified collection for later analysis.
+     *
+     * This method executes the API data aggregation process using the following
+     * approach with the MongoDB Reactive Streams driver:
+     *
+     * 1. For each geographic region in turn, run a query to retrieve all the API
+     *      documents for the APIs in that region.
+     * 2. *Simultaneously*, run an aggregation pipeline to determine the total number of calls to each
+     *      api, as well as the success and failure rates of those calls, for the time period from the
+     *      baseDate specified in the model's configuration file to the current date
+     * 3. The initial match stage in the pipeline described is step 2 should filter on the metrics
+     *      documents' deployment.region field (rather than do a $in expression on apiDetails.appname),
+     *      to identify the relevant metrics documents.
+     * 4. On completion of the aggregation pipeline, the returned metrics should be appended to the
+     *      corresponding API documents retrieved by the query in step 1 (so the eventual output
+     *      is comparable to the output of the $lookup pipeline).
+     * 5. On completion of each test iteration, create a BSON document for each geographic region containing:
+     *      The start time of the test iteration for this region (in epoch format)
+     *      The duration of the test iteration for this region in milliseconds
+     *      The name of the model (this.name())
+     *      The name of the measure ("USEINQUERY")
+     *      The geographic region tested
+     *      The baseDate used to filter metrics records;
+     *
+     *      The total number of results documents returned should equal opsToTest * number of regions
+     */
+    private Document[] getRegionQueryAsyncResults(int opsToTest) {
+
+
+        //We are going to run the aggregation once for each geographic region. Get the
+        //list of regions from the model's configuration.
+        JSONArray regions = (JSONArray)customArgs.get("regions");
+
+        //We'll be filtering to only return data where the creationDate is
+        //greater than or equal to "baseDate" in the model's configuration file.
+        String baseDate = (String)customArgs.get("baseDate");
+
+        //The times array is used to store BSON documents with the execution
+        //times of each iteration.
+        Document[] times = new Document[opsToTest * regions.size()];
+        int currentTest = 0;
+
+        for (int o = 0; o < opsToTest; o++) {
+
+            //Iterate for each region
+            for(Object regionObj : regions) {
+
+                String region = (String) regionObj;
+
+                //Convert baseDate from the config file to a date object. We'll filter for records where the
+                //creationDate is greater than or equal to this date.
+                Instant instant = Instant.parse(baseDate); //Expected format is "2000-01-01T00:00:00.000Z"
+                Date baseTimeStamp = Date.from(instant);
+
+
+                //Get the APIs for the selected region
+                ArrayList<Document> apis = new ArrayList<>();
+
+                Bson filter = eq("deployments.region", region);
+                SubscriberHelpers.OperationSubscriber<Document> apiSubscriber = new SubscriberHelpers.OperationSubscriber<Document>(){
+                    @Override
+                    public void onNext(final Document api) {
+                        apis.add(api);
+                    }
+                };
+
+                //Simultaneously, for each API, get the metrics using a pipeline with an equality clause on region in the
+                //initial match
+                ArrayList<Document> results = new ArrayList<>();
+                List<Document> aggPipeline = Arrays.asList(
+                        new Document("$match",
+                                new Document("deployments.region", region)
+                                        .append("creationDate", new Document("$gte", baseTimeStamp))
+                        ),
+                        new Document("$group",
+                                new Document("_id", "$apiDetails.appname")
+                                        .append("totalVolume", new Document("$sum", "$transactionVolume"))
+                                        .append("totalError", new Document("$sum", "$errorCount"))
+                                        .append("totalSuccess", new Document("$sum", "$successCount"))
+                        ),
+                        new Document("$project",
+                                new Document("aggregatedResponse",
+                                        new Document("totalTransactionVolume", "$totalVolume")
+                                                .append("errorRate",
+                                                        new Document("$cond", Arrays.asList(
+                                                                new Document("$eq", Arrays.asList("$totalVolume", 0L)),
+                                                                0L,
+                                                                new Document("$multiply", Arrays.asList(
+                                                                        new Document("$divide", Arrays.asList("$totalError", "$totalVolume")),
+                                                                        100L
+                                                                ))
+                                                        ))
+                                                )
+                                                .append("successRate",
+                                                        new Document("$cond", Arrays.asList(
+                                                                new Document("$eq", Arrays.asList("$totalVolume", 0L)),
+                                                                0L,
+                                                                new Document("$multiply", Arrays.asList(
+                                                                        new Document("$divide", Arrays.asList("$totalSuccess", "$totalVolume")),
+                                                                        100L
+                                                                ))
+                                                        ))
+                                                )
+                                )
+                        )
+                );
+                SubscriberHelpers.OperationSubscriber<Document> metricsSubscriber = new SubscriberHelpers.OperationSubscriber<Document>(){
+                    @Override
+                    public void onNext(final Document result) {
+                        results.add(result);
+                    }
+                };
+
+                //Working in milliseconds. Use nanoTime if greater granularity required
+                long startTime = System.currentTimeMillis();
+                //long startTime = System.nanoTime();
+
+                reactiveAPICollection.find(filter).subscribe(apiSubscriber);
+                reactiveMetricsCollection.aggregate(aggPipeline).subscribe(metricsSubscriber);
+                apiSubscriber.await();
+                metricsSubscriber.await();
+                //Merge the results into the API documents
+                int metricsReturned = 0;
+                long transactionVolume = 0L;
+                for (int i = 0; i < apis.size(); i++) {
+                    Document api = apis.get(i);
+                    for (int y = 0; y < results.size(); y++) {
+                        Document result = results.get(y);
+                        if (((String) api.get("_id")).equals((String) result.get("_id"))) {
+                            metricsReturned++;
+                            transactionVolume += (Integer)((Document)result.get("aggregatedResponse")).get("totalTransactionVolume");
+                            api.append("results", result);
+                            break;
+                        }
+                    }
+                }
+
+                long endTime = System.currentTimeMillis();
+                long duration = (endTime - startTime);
+                //Uncomment if using nanosecond granularity
+                //long endTime = System.nanoTime();
+                //long duration = (endTime - startTime) / 1000000; // Milliseconds
+                Document metrics = new Document();
+                metrics.put("startTime", startTime);
+                metrics.put("endTime", endTime);
+                metrics.put("duration", duration);
+                metrics.put("model", this.name());
+                metrics.put("measure", "QUERYASYNC");
+                metrics.put("region", region);
+                metrics.put("baseDate", baseTimeStamp);
+                metrics.put("apiCount", apis.size());
+                metrics.put("metricsCount", metricsReturned);
+                metrics.put("transactionsCount", transactionVolume);
+                metrics.put("threads", ((Long)this.args.getOrDefault("threads", 2)).intValue());
+                metrics.put("iterations", ((Long)this.args.getOrDefault("iterations", 2)).intValue());
+                metrics.put("clusterTier", (String)this.customArgs.getOrDefault("clusterTier", "Not Specified"));
+                times[currentTest] = metrics;
+                currentTest++;
             }
         }
         return times;
@@ -414,7 +600,11 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                         .append("transactionVolume", tv)
                         .append("errorCount", ec)
                         .append("successCount", sc)
-                        .append("deployments", new Document("region", region));
+                        .append("deployments", new Document("region", region))
+                        .append("year", metricDate.atZone(ZoneId.systemDefault()).getYear())
+                        .append("monthOfYear", metricDate.atZone(ZoneId.systemDefault()).getMonthValue())
+                        .append("dayOfMonth", metricDate.atZone(ZoneId.systemDefault()).getDayOfMonth())
+                        .append("dayOfYear", metricDate.atZone(ZoneId.systemDefault()).getDayOfYear());
                 metrics.add(metricDoc);
                 metricDate = metricDate.plus(Duration.ofMinutes(15));
             }
@@ -438,5 +628,6 @@ public class APIMonitorMultiQueryTest implements SchemaTest {
                 .nextLong(startSeconds, endSeconds);
         return Instant.ofEpochSecond(random);
     }
+
 }
 

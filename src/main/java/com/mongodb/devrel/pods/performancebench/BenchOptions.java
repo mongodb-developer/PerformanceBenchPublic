@@ -1,19 +1,30 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package com.mongodb.devrel.pods.performancebench;
 
+/*
+ * Copyright 2008-present MongoDB, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 /**
- *
- * @author graeme
- *
+ **
  * Class to read and hold Performance Bench configuration options as a BSON document.
  *
- * Path to a JSON document holding the configurarion options is passed to the application
+ * Path to a JSON document holding the configuration options is passed to the application
  * as a command-line parameter. The JSON file is expected to have a single top level field - an array
  * named "models". Each entry in the array is a document describing a set of tests to be performed
- * by PerformanceBench. See the project README for a full decscription of the expected JSON format.
+ * by PerformanceBench. See the project README for a full description of the expected JSON format.
  *
  */
 import java.io.FileNotFoundException;
