@@ -4,7 +4,10 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.CreateCollectionOptions;
 import com.mongodb.client.model.IndexOptions;
+import com.mongodb.client.model.TimeSeriesGranularity;
+import com.mongodb.client.model.TimeSeriesOptions;
 import com.mongodb.devrel.pods.performancebench.SchemaTest;
 import org.bson.Document;
 import org.bson.conversions.Bson;
@@ -165,11 +168,11 @@ public class APIMonitorPrecomputeTest implements SchemaTest {
         }
 
         apiCollection.createIndex(new Document("deployments.region", 1), new IndexOptions().sparse(false));
-        metricsCollection.createIndex(new Document("deployments.region", 1)
+        metricsCollection.createIndex(new Document("region", 1)
                 .append("year", 1)
                 .append("dayOfYear", 1)
                 .append("creationDate", 1), new IndexOptions().sparse(false));
-        precomputeCollection.createIndex(new Document("deployments.region", 1)
+        precomputeCollection.createIndex(new Document("region", 1)
                 .append("dateTag", 1), new IndexOptions().sparse(false));
 
         logger.info("Indexes created");
@@ -359,22 +362,22 @@ public class APIMonitorPrecomputeTest implements SchemaTest {
                 //initial match
                 ArrayList<Document> results = new ArrayList<>();
                 List<Document> aggPipeline = Arrays.asList(new Document("$match",
-                    new Document("deployments.region", region)
+                    new Document("region", region)
                                 .append("dateTag", new Document("$in", precomputes))),
                         new Document("$unionWith",
-                                new Document("coll", "APIMetrics")
+                                new Document("coll", (String)customArgs.get("metricsCollectionName"))
                                         .append("pipeline", Arrays.asList(new Document("$match",
                                                 new Document("$expr",
-                                                        new Document("$or", Arrays.asList(new Document("$and", Arrays.asList(new Document("$eq", Arrays.asList("$deployments.region", region)),
+                                                        new Document("$or", Arrays.asList(new Document("$and", Arrays.asList(new Document("$eq", Arrays.asList("$region", region)),
                                                                         new Document("$eq", Arrays.asList("$year", baseYear)),
                                                                         new Document("$eq", Arrays.asList("$dayOfYear", baseDOY)),
                                                                         new Document("$gte", Arrays.asList("$creationDate", baseTimeStamp)))),
-                                                                new Document("$and", Arrays.asList(new Document("$eq", Arrays.asList("$deployments.region", region)),
+                                                                new Document("$and", Arrays.asList(new Document("$eq", Arrays.asList("$region", region)),
                                                                         new Document("$eq", Arrays.asList("$year", nowYear)),
                                                                         new Document("$eq", Arrays.asList("$dayOfYear", nowDOY)),
                                                                         new Document("$lte", Arrays.asList("$creationDate", nowTimeStamp))))))))))),
                         new Document("$group",
-                                new Document("_id", "$apiDetails.appname")
+                                new Document("_id", "$appname")
                                         .append("totalVolume",
                                                 new Document("$sum", "$transactionVolume"))
                                         .append("totalError",
@@ -382,7 +385,7 @@ public class APIMonitorPrecomputeTest implements SchemaTest {
                                         .append("totalSuccess",
                                                 new Document("$sum", "$successCount"))
                                         .append("region",
-                                                new Document("$first", "$deployments.region"))),
+                                                new Document("$first", "$region"))),
                         new Document("$project",
                                 new Document("aggregatedresponse",
                                         new Document("totalTransactionVolume", "$totalVolume")
@@ -465,13 +468,31 @@ public class APIMonitorPrecomputeTest implements SchemaTest {
 
         logger.info("Rebuilding test data for " + apiCount.toString() + " APIs");
 
+        MongoCollection<Document> apiCollection, metricsCollection, precomputeCollection, tsMetricsCollection;
+        apiCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("apiCollectionName"));
+        metricsCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("metricsCollectionName"));
+        tsMetricsCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("tsMetricsCollectionName"));
+        precomputeCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("precomputeCollectionName"));
+
         //Drop the existing collections if they exist:
         apiCollection.drop();
         metricsCollection.drop();
+        tsMetricsCollection.drop();
+        precomputeCollection.drop();
         //Recreate the handles to the collections - MongoDB will automatically recreate them
         //when we add documents
         apiCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("apiCollectionName"));
         metricsCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("metricsCollectionName"));
+        precomputeCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("precomputeCollectionName"));
+
+        //The time-series collection needs to be explicitly created
+        TimeSeriesOptions tsOptions = new TimeSeriesOptions("creationDate");
+        tsOptions = tsOptions.metaField("region");
+        tsOptions = tsOptions.granularity(TimeSeriesGranularity.HOURS);
+        CreateCollectionOptions collOptions = new CreateCollectionOptions().timeSeriesOptions(tsOptions);
+        mongoClient.getDatabase((String)customArgs.get("dbname")).createCollection((String)customArgs.get("tsMetricsCollectionName"), collOptions);
+        tsMetricsCollection = mongoClient.getDatabase((String)customArgs.get("dbname")).getCollection((String)customArgs.get("tsMetricsCollectionName"));
+
 
         //Arraylists for API documents and their corresponding metrics documents
         ArrayList<Document> apis = new ArrayList<>();
@@ -482,12 +503,14 @@ public class APIMonitorPrecomputeTest implements SchemaTest {
 
         //Current date
         Instant currentDate = Instant.now();
-        //Generate a random date within the last 90 days (this will be the date we use as the "API added" date
         Instant ninetyDaysAgo = currentDate.minus(Duration.ofDays(90));
-        Instant apiDate = this.between(ninetyDaysAgo, currentDate);
+
 
         for (Integer i = 1; i <= apiCount; i++) {
             String apiname = "api#" + i.toString();
+
+            //Generate a random date within the last 90 days (this will be the date we use as the "API added" date
+            Instant apiDate = this.between(ninetyDaysAgo, currentDate);
 
             //Randomly select a region for this API
             String region = (String)regions.get(ThreadLocalRandom.current().nextInt(0, regions.size()));
@@ -520,16 +543,16 @@ public class APIMonitorPrecomputeTest implements SchemaTest {
                 Integer sc = ThreadLocalRandom.current().nextInt(0, tv) + 1;
                 Integer ec = tv - sc;
                 Document metricDoc = new Document("_id", metricName)
-                        .append("apiDetails", new Document("appname", apiname))
+                        .append("appname", apiname)
                         .append("creationDate", Date.from(metricDate))
                         .append("transactionVolume", tv)
                         .append("errorCount", ec)
                         .append("successCount", sc)
-                        .append("deployments", new Document("region", region))
-                        .append("year", metricDate.atZone(ZoneId.systemDefault()).getYear())
-                        .append("monthOfYear", metricDate.atZone(ZoneId.systemDefault()).getMonthValue())
-                        .append("dayOfMonth", metricDate.atZone(ZoneId.systemDefault()).getDayOfMonth())
-                        .append("dayOfYear", metricDate.atZone(ZoneId.systemDefault()).getDayOfYear());
+                        .append("region", region)
+                        .append("year", metricDate.atZone(ZoneOffset.UTC).getYear())
+                        .append("monthOfYear", metricDate.atZone(ZoneOffset.UTC).getMonthValue())
+                        .append("dayOfMonth", metricDate.atZone(ZoneOffset.UTC).getDayOfMonth())
+                        .append("dayOfYear", metricDate.atZone(ZoneOffset.UTC).getDayOfYear());
                 metrics.add(metricDoc);
                 metricDate = metricDate.plus(Duration.ofMinutes(15));
             }
@@ -537,10 +560,122 @@ public class APIMonitorPrecomputeTest implements SchemaTest {
                 //Add API info in batches of 50 to keep arraylist size reasonable
                 apiCollection.insertMany(apis);
                 metricsCollection.insertMany(metrics);
+                tsMetricsCollection.insertMany(metrics);
                 apis = new ArrayList<>();
                 metrics = new ArrayList<>();
             }
         }
+
+        //Rebuild precomputedata
+
+        //Start with years
+        List<Document> precalcPipeline = Arrays.asList(new Document("$group",
+                        new Document("_id",
+                                new Document("$concat", Arrays.asList("$appname", "#Y#",
+                                        new Document("$toString", "$year"))))
+                                .append("transactionVolume",
+                                        new Document("$sum", "$transactionVolume"))
+                                .append("errorCount",
+                                        new Document("$sum", "$errorCount"))
+                                .append("successCount",
+                                        new Document("$sum", "$successCount"))
+                                .append("region",
+                                        new Document("$first", "$region"))
+                                .append("appname",
+                                        new Document("$first", "$appname"))
+                                .append("metricsCount",
+                                        new Document("$sum", 1L))
+                                .append("year",
+                                        new Document("$first", "$year"))),
+                new Document("$set",
+                        new Document("type", "year_precalc")
+                                .append("dateTag",
+                                        new Document("$toString", "$year"))),
+                new Document("$merge",
+                        new Document("into", (String)customArgs.get("precomputeCollectionName"))
+                                .append("on", "_id")
+                                .append("whenMatched", "replace")));
+        MongoCursor<Document> cursor = metricsCollection.aggregate(precalcPipeline).iterator();
+        cursor.close();
+
+
+        //Next months
+        precalcPipeline = Arrays.asList(new Document("$group",
+                        new Document("_id",
+                                new Document("$concat", Arrays.asList("$appname", "#Y#",
+                                        new Document("$toString", "$year"), "#M#",
+                                        new Document("$toString", "$monthOfYear"))))
+                                .append("transactionVolume",
+                                        new Document("$sum", "$transactionVolume"))
+                                .append("errorCount",
+                                        new Document("$sum", "$errorCount"))
+                                .append("successCount",
+                                        new Document("$sum", "$successCount"))
+                                .append("region",
+                                        new Document("$first", "$region"))
+                                .append("appname",
+                                        new Document("$first", "$appname"))
+                                .append("metricsCount",
+                                        new Document("$sum", 1L))
+                                .append("year",
+                                        new Document("$first", "$year"))
+                                .append("monthOfYear",
+                                        new Document("$first", "$monthOfYear"))),
+                new Document("$set",
+                        new Document("type", "month_precalc")
+                                .append("dateTag",
+                                        new Document("$concat", Arrays.asList(new Document("$toString", "$year"), "-",
+                                                new Document("$toString", "$monthOfYear"))))),
+                new Document("$merge",
+                        new Document("into", (String)customArgs.get("precomputeCollectionName"))
+                                .append("on", "_id")
+                                .append("whenMatched", "replace")));
+        cursor = metricsCollection.aggregate(precalcPipeline).iterator();
+        cursor.close();
+
+        //Finally, days of month
+        precalcPipeline = Arrays.asList(new Document("$group",
+                        new Document("_id",
+                                new Document("$concat", Arrays.asList("$appname", "#Y#",
+                                        new Document("$toString", "$year"), "#M#",
+                                        new Document("$toString", "$monthOfYear"), "#D#",
+                                        new Document("$toString", "$dayOfMonth"))))
+                                .append("transactionVolume",
+                                        new Document("$sum", "$transactionVolume"))
+                                .append("errorCount",
+                                        new Document("$sum", "$errorCount"))
+                                .append("successCount",
+                                        new Document("$sum", "$successCount"))
+                                .append("region",
+                                        new Document("$first", "$region"))
+                                .append("appname",
+                                        new Document("$first", "$appname"))
+                                .append("metricsCount",
+                                        new Document("$sum", 1L))
+                                .append("year",
+                                        new Document("$first", "$year"))
+                                .append("monthOfYear",
+                                        new Document("$first", "$monthOfYear"))
+                                .append("dayOfMonth",
+                                        new Document("$first", "$dayOfMonth"))),
+                new Document("$set",
+                        new Document("type", "dom_precalc")
+                                .append("dateTag",
+                                        new Document("$concat", Arrays.asList(new Document("$toString", "$year"), "-",
+                                                new Document("$toString", "$monthOfYear"), "-",
+                                                new Document("$toString", "$dayOfMonth"))))),
+                new Document("$merge",
+                        new Document("into", (String)customArgs.get("precomputeCollectionName"))
+                                .append("on", "_id")
+                                .append("whenMatched", "replace")));
+        cursor = metricsCollection.aggregate(precalcPipeline).iterator();
+        cursor.close();
+
+        //Reset the class level collection references:
+        this.apiCollection = apiCollection;
+        this.metricsCollection = metricsCollection;
+        this.precomputeCollection = precomputeCollection;
+
         logger.info("Test data rebuilt");
     }
 
