@@ -167,6 +167,9 @@ The name and path to the configuration file is passed to PerformanceBench as a c
 
 `java -jar performancebench.jar -c apimonitor_config.json`
 
+The source was developed in IntelliJ IDEA 2022.2.3 using OpenJDK Runtime Environment Temurin-17.0.3+7 (build 17.0.3+7).
+The compiled application was also run on Amazon Linux using OpenJDK 17.0.5 (2022-10-18 LTS - Corretto).
+
 ## APIMonitor Sample Models
 
 The code in this repository includes example SchemaTest classes for a hypothetical API monitoring application. 
