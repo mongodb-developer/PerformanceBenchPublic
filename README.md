@@ -87,46 +87,52 @@ measure executions will be carried out for the model.
 An example JSON configuration file is listed below:
 ```
 {
-    "models": [
-        {
-        "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_multiquery",
-        "className": "APIMonitorMultiQueryTest",
-        "measures": ["USEEQUALITYQUERY", "USEINQUERY"],
-        "threads": 1,
-        "iterations": 1,
-        "resultsuri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
-        "resultsCollectionName": "apimonitor_results",
-        "resultsDBName": "performancebenchresults",
-        "custom": {
-            "uri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
-            "apiCollectionName": "APIDetails",
-            "metricsCollectionName": "APISingleCollection",
-            "dbname": "APIMonitorDB",
-            "regions": ["UK", "TK", "HK", "IN"],
-            "baseDate": "2022-11-01T00:00:00.000Z",
-            "clusterTier": "M10"
-        }
-        },
-        {
-            "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_lookup",
-            "className": "APIMonitorLookupTest",
-            "measures": ["USEPIPELINE"],
-            "threads": 1,
-            "iterations": 1,
-            "resultsuri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
-            "resultsCollectionName": "apimonitor_results",
-            "resultsDBName": "performancebenchresults",
-            "custom": {
-                "uri": "mongodb+srv://testuser:testpass@gcrm0.bqwfvpn.mongodb.net/?retryWrites=true&w=majority",
-                "apiCollectionName": "APIDetails",
-                "metricsCollectionName": "APISingleCollection",
-                "dbname": "APIMonitorDB",
-                "regions": ["UK", "TK", "HK", "IN" ],
-                "baseDate": "2022-11-01T00:00:00.000Z",
-                "clusterTier": "M10"
-            }
-        }
-    ]
+  "models": [
+    {
+      "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_lookup",
+      "className": "APIMonitorLookupTest",
+      "measures": ["USEPIPELINE"],
+      "threads": 2,
+      "iterations": 500,
+      "resultsuri": "mongodb+srv://myuser:mypass@my_atlas_instance.mongodb.net/?retryWrites=true&w=majority",
+      "resultsCollectionName": "apimonitor_results",
+      "resultsDBName": "performancebenchresults",
+      "custom": {
+        "uri": "mongodb+srv://myuser:mypass@my_atlas_instance.mongodb.net/?retryWrites=true&w=majority",
+        "apiCollectionName": "APIDetails",
+        "metricsCollectionName": "APIMetrics",
+        "precomputeCollectionName": "APIPreCalc",
+        "dbname": "APIMonitor",
+        "regions": ["UK", "TK", "HK", "IN" ],
+        "baseDate": "2022-11-01T00:00:00.000Z",
+        "clusterTier": "M40",
+        "rebuildData": false,
+        "apiCount": 1000
+      }
+    },
+    {
+      "namespace": "com.mongodb.devrel.pods.performancebench.models.apimonitor_regionquery",
+      "className": "APIMonitorRegionQueryTest",
+      "measures": ["QUERYSYNC","QUERYASYNC"],
+      "threads": 2,
+      "iterations": 500,
+      "resultsuri": "mongodb+srv://myuser:mypass@my_atlas_instance.mongodb.net/?retryWrites=true&w=majority",
+      "resultsCollectionName": "apimonitor_results",
+      "resultsDBName": "performancebenchresults",
+      "custom": {
+        "uri": "mongodb+srv://myuser:mypass@my_atlas_instance.mongodb.net/?retryWrites=true&w=majority",
+        "apiCollectionName": "APIDetails",
+        "metricsCollectionName": "APIMetrics",
+        "precomputeCollectionName": "APIPreCalc",
+        "dbname": "APIMonitor",
+        "regions": ["UK", "TK", "HK", "IN" ],
+        "baseDate": "2022-11-01T00:00:00.000Z",
+        "clusterTier": "M40",
+        "rebuildData": false,
+        "apiCount": 1000
+      }
+    }
+  ]
 }
 ```
 
@@ -173,13 +179,13 @@ The compiled application was also run on Amazon Linux using OpenJDK 17.0.5 (2022
 ## APIMonitor Sample Models
 
 The code in this repository includes example SchemaTest classes for a hypothetical API monitoring application. 
-Within this application, a monitoring document is produced by Observability software every 15 minutes for each
+Within this application, a monitoring document is produced by observability software every 15 minutes for each
 API every 15 minutes and includes the total number of calls to the API for the period, the number that were
 successful and the number that failed. Each API is assigned to a geographic region (UK, Tokyo, Hong Kong, and
-India). The implemented model classes are designed to compare schema design options for querying the data to 
-summarise the total number of calls and the overall success a and failure rates for all APIs in a given region
-for a given time period. Specifically, the models compare using a $lookup aggregation stage to join API data to
-its corresponding monitoring data, versus using a single-collection style approach.
+India). The implemented model classes are designed to compare alternative schema design options for querying 
+the data to summarise the total number of calls and the overall success a and failure rates for all APIs in a
+given region for a given time period. 
+The implemented classes include an option to build, or rebuild, a sample data set for a given number of APIs.
 
 ## DISCLAIMER
 
